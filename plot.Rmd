@@ -1,0 +1,471 @@
+---
+title: "Simulation plot"
+author: "Yichen"
+date: "5/19/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+options(width = 10000)
+rm(list = ls())
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+
+# --------------------------
+# Regular
+setwd("/Users/Yichen/Google Drive/Genentech/simu/051520/main")
+list.filenames<-list.files(pattern=".csv$")
+list <- lapply(1: length(list.filenames), function(i) {
+  read.csv(list.filenames[i])
+})
+d1 <- do.call(rbind, list)
+
+
+d2 <- d1 %>% filter(!grepl("mean", r2.type) & !grepl("var", r2.type))
+d3 <- d2 %>% mutate(r2.type = "Oracle R-squared with causal factor observed", r2 = r2.oracle) %>% select(-"r2.oracle")
+d4 <- unique(d3)
+
+
+d5 <- d2 %>% select(-"r2.oracle")
+
+
+# main results - oracle R-squared
+setwd("/Users/Yichen/Google Drive/Genentech/simu/051520/main/oracle.r2")
+list.filenames<-list.files(pattern=".csv$")
+list <- lapply(1: length(list.filenames), function(i) {
+  read.csv(list.filenames[i])
+})
+d6 <- do.call(rbind, list)
+d7 <- d6 %>% filter(obs.causal == FALSE) %>% mutate(n.cor = 15, r2.type = "Oracle R-squared") %>% select(-"obs.causal")
+
+d <- rbind(d4, d5, d7) %>% filter(r2.type != "Oracle R-squared with causal factor observed") %>%  filter(r2.type != "Legacy trials R-squared")
+d$r2.type <- factor(d$r2.type, levels = c("Generalized R-squared", "Estimated generalized R-squared w/ 10-fold cv", "Estimated generalized R-squared w/ loo cv", "Oracle R-squared"))
+1-1/(0.1^2 + 1)
+1-1/(0.5^2 + 1)
+1-1/(1^2 + 1)
+1-1/(2.5^2 + 1)
+1-1/(5^2 + 1)
+1-1/(10^2 + 1)
+# beta = 0.1 0.5 1 2.5 5 10
+beta = 0.1
+cor = 0.9
+beta_new = beta * cor
+1 - (1 + beta^2 -beta_new^2)/(beta^2+1)
+n.cor.1 = 2
+beta_new = beta * cor / (1 + cor^2 * (n.cor.1 - 1))
+1 - (1 + beta^2 -beta_new^2)/(beta^2+1)
+
+
+
+#simu 2
+setwd("/Users/Yichen/Google Drive/Genentech/simu/051520/toy0")
+list.filenames<-list.files(pattern=".csv$")
+list <- lapply(1: length(list.filenames), function(i) {
+  read.csv(list.filenames[i])
+})
+a <- do.call(rbind, list)
+a$var <- ordered(a$var, levels = c(paste0("a.", 0:40), paste0("n.", 1:15)))
+a$mod <- ordered(a$mod, levels = c("main", paste0("cv.", 1:10)))
+
+
+# Toy example: r2
+setwd("/Users/Yichen/Google Drive/Genentech/simu/051520/toy0/generalized.r2")
+list.filenames<-list.files(pattern=".csv$")
+list <- lapply(1: length(list.filenames), function(i) {
+  read.csv(list.filenames[i])
+})
+r1 <- do.call(rbind, list)
+setwd("/Users/Yichen/Google Drive/Genentech/simu/051520/toy0/oracle.r2")
+list.filenames<-list.files(pattern=".csv$")
+list.filenames<-list.files(pattern=".csv$")
+list <- lapply(1: length(list.filenames), function(i) {
+  read.csv(list.filenames[i])
+})
+r2 <- do.call(rbind, list)
+r3 <- r2 %>% filter(error.in.y == TRUE) %>% select(-"error.in.y") %>% mutate(r2.type = "Oracle R-squared")
+r4 <- rbind(r1, r3) %>% filter(r2.type != "Oracle R-squared")
+
+n.cor.1 = 30
+res2 <- lapply(list(1.0, 10), function(beta){
+  res <- lapply(list(0.5, 0.7, 0.9),  function(i){
+    cor = sqrt(i)
+    v12 = matrix(rep(cor * beta, n.cor.1), nrow = 1)
+    v22 = matrix(rep(cor, n.cor.1^2), nrow = n.cor.1)
+    diag(v22) <- 1
+    r2 <- 1 - (beta^2 + 1 - v12 %*% solve(v22) %*% t(v12))/(beta^2 + 1)
+    cbind("beta" = beta, "cor" = i, 
+          "r2.s" = r2, 
+          "r2.type" = "Oracle R-squared")
+  })
+  do.call(rbind, res)
+})
+res3 <- data.frame(do.call(rbind, res2))
+colnames(res3) <- c("beta", "cor", "r2", "r2.type")
+res3$r2 <- as.numeric(as.character(res3$r2))
+res3$beta <- as.numeric(as.character(res3$beta))
+res3$cor <- as.numeric(as.character(res3$cor))
+res3$obs.causal = FALSE
+r <- rbind(r4, res3)
+
+r$r2.type <- factor(r$r2.type, levels = c("Generalized R-squared", "Estimated generalized R-squared w/ 10-fold cv", "Oracle R-squared"))
+
+
+#Graphing
+thm<-theme(plot.title = element_text(hjust = 0.5, size=12,face="bold"), 
+           plot.subtitle = element_text(hjust = 0.5, size=10),
+           legend.position = "bottom", 
+           legend.title = element_text(size=12),
+           legend.text = element_text(size=10),
+           plot.caption = element_text(hjust = 0, face= "italic"),
+           plot.caption.position = "plot",
+           axis.title=element_text(size=12),
+           axis.text=element_text(size=10))
+```
+
+
+
+# {.tabset .tabset-pills .tabset-fade}
+
+
+## Simulation 1 {.tabset .tabset-pills .tabset-fade}
+### Parameters {.tabset .tabset-pills .tabset-fade}
+* 3 legacy trials and 3 future trials (n = 400 each)
+*	For each trial: 1 unobserved causal factor with coefficient $\beta$
+* Outcome $y = \beta x + \epsilon$
+
+*	$Q$ **potentially** correlated features
+*	$q$ **truly** correlated features with correlation $\rho$ (randomly selected)
+
+* 15 noise features
+
+
+
+* **Outcomes**
+  * Oracle $R^2$ when causal factor is not observed
+  * Generalized $R^2$
+  * Estimated generalized $R^2$ with 10-fold cross-validation
+  * Estimated generalized $R^2$ with leave-one-study-out cross-validation
+
+
+
+
+
+
+
+
+
+
+### Result 1a {.tabset .tabset-pills .tabset-fade}
+
+- **Hypothesis: As number of truly correlated features $q$ increases, the correlated features picked up by the legacy model are more likely to overlap with correlated features in the future trials, which leads to smaller difference between generalized $R^2$ and estimated generalized $\hat R^2$**
+- Fix Q, as q increase, generalized $R^2$ and two $\hat R^2$ all increase towards the oracle $R^2$. The difference between generalized $R^2$ and  $\hat R^2$ decreases as we have a larger proportion of candidate correlated features among candidate correlated features.
+- While $\hat R^2$ from 10-fold cv largely overestimates the generalized $R^2$, $\hat R^2$ from loo cv corrects this gap and does a better job at estimating the generalized $R^2$.
+
+```{r, echo=FALSE, fig.width = 12}
+tmp <- d %>% filter(beta == 1, cor == 0.9, n.cor == 15, n.cor.1 != 1)
+ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + scale_linetype_manual(values=c("solid", "dashed", "dotted")) + 
+  geom_line(data = filter(tmp, r2.type != "Oracle R-squared"), color = "steelblue") + 
+  geom_line(data = filter(tmp, r2.type == "Oracle R-squared"), color = "coral", linetype = "solid") + 
+  labs(title= "Estimated generalized vs generalized R-squared \nby number of correlated features (q)",
+       subtitle = "(Number of potentially correlated features Q = 15, \u03C1 = 0.9, \u03B2 = 1",  
+       y="R-squard", x = "q", linetype = "Type") + thm +
+  theme(legend.position = "right")
+
+```
+
+
+
+
+```{r, echo=FALSE, fig.width = 12, include = FALSE}
+# - The trend remains the same for different number of potentially correlated features $Q$.
+# tmp <- d %>% filter(beta == 1, cor == 0.9, r2.type != "Oracle R-squared") %>% filter(n.cor == 15 | n.cor == 45)
+# n.cor.labs = c("Number of candidate correlated features Q = 15", "Q = 45")
+# names(n.cor.labs) <- c("15", "45")
+# 
+# ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line(color = "steelblue") +
+#   scale_linetype_manual(values=c("solid", "dashed", "dotted")) + 
+#   facet_wrap(~n.cor, ncol=3, labeller = labeller(n.cor = n.cor.labs), scales = "free_x") + 
+#   labs(title= "Estimated generalized vs generalized R-squared by truly correlated features (q)",
+#        subtitle = "(\u03C1 = 0.9, \u03B2 = 1)",  
+#        y="R-squard", x = "q", linetype = "Type") + thm
+```
+
+- With different coefficient $\beta$ for the unobserved causal feature, generalized $\hat R^2$ from loo cv consistently outperformed generalized $\hat R^2$ from 10-fold cv in terms of approximating the generalized $R^2$
+- With larger $\beta$ (larger oracle $R^2$), we observe larger difference between generalized $R^2$ and $\hat R^2$.
+
+```{r, echo=FALSE, fig.width = 12, fig.height = 12}
+tmp <- d %>% filter(n.cor == 15, cor == 0.9, n.cor.1 != 1)
+beta.labs = c("Coefficient of the causal factor \u03B2 = 0.1", "\u03B2 = 0.5", "\u03B2 = 1", 
+              "\u03B2 = 2.5", "\u03B2 = 5", "\u03B2 = 10")
+names(beta.labs) <- c("0.1", "0.5", "1", "2.5", "5", "10")
+# labeller = labeller(beta = beta.labs
+ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type))  + 
+  geom_line(data = filter(tmp, r2.type != "Oracle R-squared"), color = "steelblue") + 
+  scale_linetype_manual(values=c("solid", "dashed", "dotted")) + 
+  geom_line(data = filter(tmp, r2.type == "Oracle R-squared"), color = "coral", linetype = "solid") +
+  facet_wrap(~beta, ncol=3, labeller = labeller(beta = beta.labs)) +
+  labs(title= "Estimated generalized vs generalized R-squared by truly correlated features (q)",
+       subtitle = "(Number of candidate correlated features Q = 15, \u03C1 = 0.9)",  
+       y="R-squard", x = "Number of truly correlated features q", linetype = "Type") + thm
+```
+
+
+### Result 1b {.tabset .tabset-pills .tabset-fade}
+
+- **Hypothesis: As candidate correlated features $Q$ increases, the correlated features in the legacy model are less likely to overlap with correlated features in the future trials. This leads to larger difference in generalized $R^2$ and $\hat R^2$.**
+- Fix number of truly correlated feautures $q = 15$, as Q increase, both $R^2$ and $\hat R^2$ from 10-fold cv or loo cv decrease. But generalized $\hat R^2$ decreases much faster. We observe a larger difference between $R^2$ and $\hat R^2$ as the proportion of truly correlated features among candidate correlated features decreases. 
+- Similarly, $\hat R^2$ from 10-fold cv overestimates the generalized $R^2$, $\hat R^2$ from loo cv performs better at estimating the generalized $R^2$.
+```{r, echo=FALSE, fig.width = 12 }
+tmp <- d %>% filter(beta == 1, cor == 0.9, n.cor.1 == 15, r2.type != "Oracle R-squared")
+ggplot(tmp, aes(x = n.cor, y = r2, linetype = r2.type)) + 
+  geom_line(color = "steelblue") + 
+  scale_linetype_manual(values=c("solid", "dashed", "dotted")) + 
+  labs(title= "Estimated generalized vs generalized R-squared \nby number potentially of correlated features (Q)",
+       subtitle = "(Number of truly correlated features q = 15, \u03C1 = 0.9, \u03B2 = 1)",
+       y="R-squard", x = "Q", linetype = "Type") + thm
+```
+
+
+
+```{r, echo=FALSE, fig.width = 12, eval = FALSE, include = FALSE}
+# The trend remains the same for different number of correlated features $q$ 
+# tmp <- d %>% filter(beta == 1, cor == 0.9, r2.type != "Oracle R-squared") %>% filter(n.cor.1 == 3 | n.cor.1 == 15)
+# n.cor.1.labs = c("Number of truly correlated features q = 3", "q = 15")
+# names(n.cor.1.labs) <- c("3", "15")
+# ggplot(tmp, aes(x = n.cor, y = r2, linetype = r2.type)) + 
+#   geom_line(color = "steelblue") +
+#   facet_wrap(~n.cor.1, ncol=3, labeller = labeller(n.cor.1 = n.cor.1.labs), scales = "free_x") +
+#   scale_linetype_manual(values=c("solid", "dashed", "dotted")) +
+#   labs(title= "Estimated generalized vs generalized R-squared by Q",
+#        subtitle = "(\u03C1 = 0.9, \u03B2 = 1)",
+#        y="R-squard", x = "Number of candidate correlated features Q", linetype = "Type") + thm
+
+```
+
+
+
+## Simulation 2 {.tabset .tabset-pills .tabset-fade}
+
+- Updated simulation:
+  - 3 legacy trials and 1 future trial (n = 600 each)
+    - 40 potentially correlated features (a.1 - a.40)
+    - legacy trial 1: a.1 - a.10 are truly correlated
+    - legacy trial 2: a.11 - a.20 are truly correlated
+    - legacy trial 3: a.11 - a.30 are truly correlated
+    - *future trial: a.31 - a.40 are truly correlated *
+
+
+```{r, echo=FALSE, fig.width = 12}
+
+
+tmp <- a %>% filter(obs.causal == FALSE, beta == 1, cor == 0.9)
+ggplot(tmp, aes(var, mod, fill= coef)) + geom_tile() +
+  scale_fill_continuous(high = "#132B43", low = "white") + 
+  labs(title= "Heatmap for coefficients in linear model",
+       subtitle = "(Correlation \u03C1 = 0.9, coefficient \u03B2 = 1)",
+       y = "Linear model", x = "Variable")  + thm + 
+  theme(axis.text.x = element_text(angle = 90))
+tmp <- a %>% filter(obs.causal == FALSE, beta == 1, cor == 0.7)
+ggplot(tmp, aes(var, mod, fill= coef)) + geom_tile() +
+  scale_fill_continuous(high = "#132B43", low = "white") + 
+  labs(title= "Heatmap for coefficients in linear model",
+       subtitle = "(Correlation \u03C1 = 0.7, coefficient \u03B2 = 1)",
+       y = "Linear model", x = "Variable")  + thm + 
+  theme(axis.text.x = element_text(angle = 90))
+
+beta.labs = c("Coefficient \u03B2 = 1", "\u03B2 = 10")
+names(beta.labs) <- c("1", "10")
+
+
+tmp <- r %>% filter(obs.causal == FALSE) %>% filter(beta == 1 | beta == 10)
+ggplot(tmp, aes(x = cor, y = r2, linetype = r2.type)) + 
+  geom_line(data = filter(tmp, r2.type != "Oracle R-squared"), color = "steelblue") + 
+  scale_linetype_manual(values=c("solid", "dashed")) + 
+  geom_line(data = filter(tmp, r2.type == "Oracle R-squared"), color = "coral", linetype = "solid") + 
+  facet_wrap(~beta, labeller = labeller(beta = beta.labs)) + 
+  labs(title= "Estimated generalized vs generalized R-squared vs oracle R-squared by \u03B2", color = "Type", x = "Correlation \u03C1", y = "R-squared", linetype = "Type") + thm
+
+
+```
+
+```{r, echo=FALSE, fig.width = 12, eval = FALSE, include = FALSE}
+# tmp <- a %>% filter(beta == 60, cor == 0.9, obs.causal == TRUE)
+# ggplot(tmp, aes(var, mod, fill= coef)) + geom_tile() +
+#   scale_fill_continuous(high = "#132B43", low = "white") + 
+#   labs(title= "Heatmap for coefficients in linear model",
+#        subtitle = "(Causal factor observed, \u03C1 = 0.9, \u03B2 = 60)",
+#        y = "Linear model", x = "Variable")  + thm + 
+#   theme(axis.text.x = element_text(angle = 90))
+```
+
+## Simulation 3 {.tabset .tabset-pills .tabset-fade}
+- *Updated simulation:* 
+- 3 legacy trials and 1000 future trial (n = 400 each)
+- Predict on each future trial
+
+- Result: As $\frac{q}{Q}$ increases, the variance of the generalized $R^2$ decreases
+```{r, echo=FALSE, fig.width = 12}
+t1 <- d1 %>% filter(grepl("mean", r2.type)) %>% mutate(mean = r2) %>% select(-c(r2, r2.type) )
+t2 <- d1 %>% filter(grepl("var", r2.type)) %>% mutate(variance = r2) %>% select(-c(r2, r2.type) )
+t <- t1 %>% left_join(t2, by = c("beta", "n.cor", "n.cor.1", "cor", "r2.oracle")) %>% mutate(upper = mean + variance, lower = mean - variance)
+
+tmp <- t %>% filter(n.cor == 15, cor == 0.9, beta == 1)
+ggplot(tmp, aes(n.cor.1, mean)) + geom_point(color = "steelblue") + geom_line(color = "steelblue")  + geom_errorbar(aes(ymin=lower, ymax=upper), color = "steelblue") + 
+  labs(title= "Generalized R-squared by number of truly correlated features q",
+       subtitle = "(Number of candidate correlated features Q = 15, \u03C1 = 0.9, \u03B2 = 60, oracle R-squared = 0.5)") + ylab("Generalized R-squared") + xlab("Number of correlated features q") + thm
+
+tmp <- t %>% filter(n.cor == 45, cor == 0.9, beta == 1)
+ggplot(tmp, aes(n.cor.1, mean)) + geom_point(color = "steelblue") + geom_line(color = "steelblue")  + geom_errorbar(aes(ymin=lower, ymax=upper), color = "steelblue") + 
+  labs(title= "Generalized R-squared by number of truly correlated features q",
+       subtitle = "(Number of candidate correlated features Q = 45, \u03C1 = 0.9, \u03B2 = 60, oracle R-squared = 0.5)") + ylab("Generalized R-squared") + xlab("Number of correlated features q")  + thm
+```
+
+
+
+
+## Calculation {.tabset .tabset-pills .tabset-fade}
+- Generalized $R^2$: $R^2 = 1 - \frac{MSPE}{MSE} = 1 - \frac{\frac{1}{n}\sum(y - \hat y)^2}{\frac{1}{n}\sum(y - \overline y)^2}$ among all future trials 
+  - $\hat y$ is the predicted $y$ value based on the linear model built using the 3 legacy trials
+
+- Estimated generalized $R^2$ from 10-fold cross-validation
+  - Divide the combined legacy data into 10 folds
+  - Train the model on 9 folds of the data and predict on the other fold to get the $MSPE = \frac{1}{120}\sum(y - \hat y)^2$. 
+  - Repeat the process and get 10 cv MSPE
+  - Average the 10 cv MSPE *nominator* $MSPE = \frac{1}{1200}\sum(y - \hat y)^2$
+  - The *denominator* $MSE = \frac{1}{N}\sum(y - \hat y)^2$ using future trials
+\\
+- Oracle $R^2$
+  - when the causal feature $X$ is observed
+$$
+\begin{aligned}
+y = \beta X + \epsilon, X \sim N(0, 1), \epsilon \sim N(0, 1) \\
+var(Y) 
+&= var(\beta X + \epsilon) \\
+&= \beta^2 var(X) + var(\epsilon) + 2Cov(X, \epsilon) \\
+&= \beta^2 + 1 \\
+\\
+R^2 = 1 - \frac{var(y|x)}{var(y)} = 1 - \frac{var(\epsilon)}{\beta ^ 2var(x) + var(\epsilon)} = 1 - \frac{1}{\beta^2+1}\\
+y|X = x \sim N(\beta x, 1)\\
+\\
+cov(y, X) 
+&= E[yX] - E[y]E[X] \\
+&= E[\beta X^2 + X\epsilon] - 0 \\
+&= \beta E[X^2] + E[X]E[\epsilon] \\
+&= \beta \\
+\end{aligned}
+$$
+
+  - when the causal feature $X$ is not observed and we only have the correlated feature $\tilde{X}$
+
+$$ 
+\\
+\begin{pmatrix}
+y\\ X\\ \tilde{X}\\
+\end{pmatrix} 
+\sim N(
+\begin{pmatrix} 0\\ 0\\ 0 \end{pmatrix}
+,
+\begin{pmatrix} 
+\beta^2 + 1 & \beta & \beta\rho\\ 
+\beta & 1 & \rho\\ 
+\beta\rho & \rho & 1 \end{pmatrix}
+$$
+$$
+\begin{aligned}
+\\
+\tilde{X}|X = x = \rho x + \sqrt{1-\rho^2} Z\\
+\tilde{X}|X = x \sim N(\beta x, 1) \\
+cov(\tilde{X}, X) = \rho Var(X) Var(\tilde{X}) = \rho \\
+
+y = \tilde{\beta} \tilde{X} + \tilde{\epsilon}, \tilde{X} \sim N(0, 1), \tilde{\epsilon} \\
+\\
+cov(y, \tilde{X}) 
+&= E[y\tilde{X}] - E[y]E[\tilde{X}] \\
+&= E[(\beta X + \epsilon) \tilde{X}] - 0 \\
+&= E[(\beta X \tilde{X}] + E[\epsilon \tilde{X}] \\
+&= E[\beta X \tilde{X}] + E[\epsilon] E[\tilde{X}]\\
+&= \beta E[X \tilde{X}]\\
+&= \beta E[X E(\tilde{X}|X)]\\
+&= \beta E[X \rho X]\\
+&= \beta \rho\\
+\\
+Y|\tilde{X} = \tilde{x} \sim  N(\beta \rho\tilde{x}, \beta^2 + 1 - \beta^2 \rho ^2) \\
+\end{aligned}
+$$
+
+$$
+\begin{aligned}
+R^2 
+&= 1 - \frac{Var(y|\tilde{X})}{Var(y)} \\
+&= 1- \frac{\beta^2 + 1 - \beta^2 \rho ^2}{\beta^2 + 1} \\
+\end{aligned}
+$$
+    - when the causal feature $X$ is not observed and we have two correlated feature $\tilde{X_1}, \tilde{X_2}$ both with correlation $\rho$
+$$
+\\ 
+\begin{pmatrix}
+y\\ X\\ \tilde{X}_1\\ \tilde{X}_2\\
+\end{pmatrix} 
+\sim N(\begin{pmatrix} 0\\ 0\\ 0\\ 0 \end{pmatrix},
+\begin{pmatrix} 
+\beta^2 + 1 & \beta & \beta\rho & \beta\rho\\ 
+\beta & 1 & \rho & \rho\\ 
+\beta\rho & \rho & 1 & \rho\\ 
+\beta\rho & \rho & \rho & 1 \end{pmatrix}
+$$
+$$
+Y|\tilde{X_1} = \tilde{x_1}, \tilde{X_2} = \tilde{x_2}  \sim  N(\delta, \beta^2 + 1 - 
+\begin{pmatrix} \rho \beta & \rho \beta \end{pmatrix} 
+\begin{pmatrix} 1 & \rho \\ \rho & 1 \end{pmatrix} ^ {-1}
+\begin{pmatrix} \rho \beta \\ \rho \beta \end{pmatrix} )\\
+$$
+
+
+```{r, eval = FALSE, include = FALSE}
+cor = sqrt(0.9)
+res2 <- lapply(list(0.1, 0.5, 1.0, 2.5, 5, 10), function(beta){
+  res <- lapply(list(1, 3, 6, 9, 12 ,15),  function(n.cor.1){
+    if (n.cor.1 == 1) {
+      cbind("n.cor.1" = n.cor.1, "beta" = beta, "cor" = 0.9, "r2" = 1- (beta^2 + 1 - beta^2 * cor ^2)/(beta^2 + 1),
+            "r2.type" = "Oracle R-squared ana", "n.cor" = 15)}
+    else {
+      print(n.cor.1)
+      v12 = matrix(rep(cor * beta, n.cor.1), nrow = 1)
+      print(v12)
+      v22 = matrix(rep(cor, n.cor.1^2), nrow = n.cor.1)
+      diag(v22) <- 1
+      cbind("n.cor.1" = n.cor.1, "beta" = beta, "cor" = 0.9, 
+            "r2" = 1- (beta^2 + 1 - v12 %*% solve(v22) %*% t(v12))/(beta^2 + 1), 
+            "r2.type" = "Oracle R-squared ana", "n.cor" = 15)
+    }
+  })
+  do.call(rbind, res)
+})
+res3 <- data.frame(do.call(rbind, res2))
+res3$n.cor.1 <- as.numeric(as.character(res3$n.cor.1))
+res3$r2 <- as.numeric(as.character(res3$r2))
+res3$beta <- as.numeric(as.character(res3$beta))
+res3$n.cor <- as.numeric(as.character(res3$n.cor))
+res3$cor <- as.numeric(as.character(res3$cor))
+
+tmp1 <- rbind(d4, d5, d7) %>% filter(r2.type != "Oracle R-squared with causal factor observed")
+
+tmp <- rbind(tmp1, res3) %>% filter(cor == 0.9, n.cor == 15, n.cor.1 != 1)
+
+ggplot(tmp[tmp$beta == 0.5,] , aes(x = n.cor.1, y = r2, color = r2.type)) + geom_line()
+ggplot(tmp[tmp$beta == 1,] , aes(x = n.cor.1, y = r2, color = r2.type)) + geom_line()
+ggplot(tmp[tmp$beta == 2.5,] , aes(x = n.cor.1, y = r2, color = r2.type)) + geom_line()
+ggplot(tmp[tmp$beta == 5,] , aes(x = n.cor.1, y = r2, color = r2.type)) + geom_line()
+ggplot(tmp[tmp$beta == 10,] , aes(x = n.cor.1, y = r2, color = r2.type)) + geom_line()
+
+
+
+ggplot(tmp[tmp$beta == 0.5,] , aes(x = n.cor.1, y = r2, color = r2.type)) + geom_line()
+ggplot(tmp[tmp$beta == 1,] , aes(x = n.cor.1, y = r2, color = r2.type)) + geom_line()
+ggplot(tmp[tmp$beta == 2.5,] , aes(x = n.cor.1, y = r2, color = r2.type)) + geom_line()
+ggplot(tmp[tmp$beta == 5,] , aes(x = n.cor.1, y = r2, color = r2.type)) + geom_line()
+ggplot(tmp[tmp$beta == 10,] , aes(x = n.cor.1, y = r2, color = r2.type)) + geom_line()
+
+
+```
