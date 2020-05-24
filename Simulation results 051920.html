@@ -478,25 +478,30 @@ cov(y, X)
 <li><p>when the causal feature <span class="math inline">\(X\)</span> is not observed and we only have the correlated feature <span class="math inline">\(\tilde{X}\)</span></p></li>
 </ul></li>
 </ul>
-<span class="math display">\[ 
+<p><span class="math display">\[ 
 \\
-\begin{pmatrix}
+\begin{aligned}
+\begin{bmatrix}
 y\\ X\\ \tilde{X}\\
-\end{pmatrix} 
+\end{bmatrix} 
 \sim N(
-\begin{pmatrix} 0\\ 0\\ 0 \end{pmatrix}
+\begin{bmatrix} 0\\ 0\\ 0 \end{bmatrix}
 ,
-\begin{pmatrix} 
+\begin{bmatrix} 
 \beta^2 + 1 &amp; \beta &amp; \beta\rho\\ 
-\beta &amp; 1 &amp; \rho\\ 
-\beta\rho &amp; \rho &amp; 1 \end{pmatrix}
-\]</span> $$
-<span class="math display">\[\begin{aligned}
+\beta &amp; 1 &amp; \rho^2 \\ 
+\beta\rho &amp; \rho^2 &amp; 1 \end{bmatrix}
+\end{aligned}
+\]</span></p>
+<p><span class="math display">\[ 
+\begin{aligned}
 \\
 \tilde{X}|X = x = \rho x + \sqrt{1-\rho^2} Z\\
 \tilde{X}|X = x \sim N(\beta x, 1) \\
 cov(\tilde{X}, X) = \rho Var(X) Var(\tilde{X}) = \rho \\
-
+\end{aligned}
+\]</span> $$</p>
+<span class="math display">\[\begin{aligned}
 y = \tilde{\beta} \tilde{X} + \tilde{\epsilon}, \tilde{X} \sim N(0, 1), \tilde{\epsilon} \\
 \\
 cov(y, \tilde{X}) 
@@ -509,31 +514,36 @@ cov(y, \tilde{X})
 &amp;= \beta E[X \rho X]\\
 &amp;= \beta \rho\\
 \\
-Y|\tilde{X} = \tilde{x} \sim  N(\beta \rho\tilde{x}, \beta^2 + 1 - \beta^2 \rho ^2) \\
 \end{aligned}\]</span>
-<p>$$</p>
-<p><span class="math display">\[
+<p>$$ <span class="math inline">\(Y|\tilde{X} = \tilde{x} \sim N( \beta \rho\tilde{x}, \beta^2 + 1 - \beta^2 \rho ^2)\)</span></p>
+<p><span class="math display">\[ 
 \begin{aligned}
 R^2 
 &amp;= 1 - \frac{Var(y|\tilde{X})}{Var(y)} \\
 &amp;= 1- \frac{\beta^2 + 1 - \beta^2 \rho ^2}{\beta^2 + 1} \\
 \end{aligned}
-\]</span> - when the causal feature <span class="math inline">\(X\)</span> is not observed and we have two correlated feature <span class="math inline">\(\tilde{X_1}, \tilde{X_2}\)</span> both with correlation <span class="math inline">\(\rho\)</span> <span class="math display">\[
-\\ 
-\begin{pmatrix}
+\]</span> - when the causal feature <span class="math inline">\(X\)</span> is not observed and we have two correlated feature <span class="math inline">\(\tilde{X_1}, \tilde{X_2}\)</span> both with correlation <span class="math inline">\(\rho\)</span></p>
+<p><span class="math display">\[
+\begin{equation*}
+\begin{bmatrix}
 y\\ X\\ \tilde{X}_1\\ \tilde{X}_2\\
-\end{pmatrix} 
-\sim N(\begin{pmatrix} 0\\ 0\\ 0\\ 0 \end{pmatrix},
-\begin{pmatrix} 
+\end{bmatrix} 
+\sim N \left( \begin{bmatrix} 0\\ 0\\ 0\\ 0 \end{bmatrix},
+\begin{bmatrix} 
 \beta^2 + 1 &amp; \beta &amp; \beta\rho &amp; \beta\rho\\ 
 \beta &amp; 1 &amp; \rho &amp; \rho\\ 
-\beta\rho &amp; \rho &amp; 1 &amp; \rho\\ 
-\beta\rho &amp; \rho &amp; \rho &amp; 1 \end{pmatrix}
-\]</span> <span class="math display">\[
-Y|\tilde{X_1} = \tilde{x_1}, \tilde{X_2} = \tilde{x_2}  \sim  N(\delta, \beta^2 + 1 - 
-\begin{pmatrix} \rho \beta &amp; \rho \beta \end{pmatrix} 
-\begin{pmatrix} 1 &amp; \rho \\ \rho &amp; 1 \end{pmatrix} ^ {-1}
-\begin{pmatrix} \rho \beta \\ \rho \beta \end{pmatrix} )\\
+\beta\rho &amp; \rho &amp; 1 &amp; \rho^2\\ 
+\beta\rho &amp; \rho &amp; \rho^2 &amp; 1 \end{bmatrix} \right)
+\\
+Y|\tilde{X_1} = \tilde{x_1}, \tilde{X_2} = \tilde{x_2}  \sim  N \left(
+\begin{bmatrix} \rho \beta &amp; \rho \beta \end{bmatrix} 
+\begin{bmatrix} 1 &amp; \rho^2 \\ \rho^2 &amp; 1 \end{bmatrix} ^ {-1}
+\begin{bmatrix} \tilde{x_1} \\ \tilde{x_2} \end{bmatrix}, 
+\beta^2 + 1 - 
+\begin{bmatrix} \rho \beta &amp; \rho \beta \end{bmatrix} 
+\begin{bmatrix} 1 &amp; \rho^2 \\ \rho^2 &amp; 1 \end{bmatrix} ^ {-1}
+\begin{bmatrix} \rho \beta \\ \rho \beta \end{bmatrix} \right)\\
+\end{equation*}
 \]</span></p>
 </div>
 </div>
