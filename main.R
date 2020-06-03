@@ -39,7 +39,7 @@ noise.name <- paste0("n.",1:n.noise)
 # (no overlap)
 
 # cor: correlation
-# beta:- 1 coefficient for the causal feature
+# beta: coefficient for the causal feature
 
 n.sim = 500 # repeat the simulation
 
