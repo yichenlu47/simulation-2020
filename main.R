@@ -8,22 +8,7 @@ library(data.table , lib.loc=c(.libPaths(),'/home/students/yl002013/RRR/R_lib'))
 library(glmnet, lib.loc=c(.libPaths(),'/home/students/yl002013/RRR/R_lib'))
 library(parallel, lib.loc=c(.libPaths(),'/home/students/yl002013/RRR/R_lib'))
 
-# # beta
-# for in1 in 1
-# 
-# #cor.random
-# for in2 in TRUE FALSE
-# 
-# #n.cor
-# for in3 in 20
-# 
-# #n.cor.1
-# for in4 in 15
-# 
-# #cor
-# for in5 in 0.9
-
-
+# these parameters will be read from batch.sh
 args <- commandArgs(TRUE)
 print(args)
 beta <- as.numeric(args[1])
@@ -32,31 +17,37 @@ n.cor <- as.numeric(args[3])
 n.cor.1 <- as.numeric(args[4])
 cor <- as.numeric(args[5])
 
-# n.cor.1 <- 15
-# n.cor <- 20
-# cor <- 0.9
-# beta <- 1
-# cor.random <- 0
-
-#global parameters
+# global parameters:
+# 3 legacy trials and 1 future trial (n = 600 each)
 n.legacy.list = c(600, 600, 600)
 n.future.list = c(600)
 n.legacy.trial = length(n.legacy.list)
 n.future.trial = length(n.future.list)
 
-n.causal = 1 #1 causal feature a.0
+n.causal = 1 # 1 causal feature a.0
 causal.name <- paste0(letters[n.causal], ".0")
-n.noise = 15
+n.noise = 15 # 15 noise features
 noise.name <- paste0("n.",1:n.noise)
 
-n.sim = 500
-# if (cor.random == 0) n.cor = 100
+# for each trial:
+# n.cor: Q candidate correlated features
+# n.cor.1: q truly correlated features among Q
+
+# cor.random: if 1, truly correlated features are randomly selected among 
+# candidate correlated features, they are allowed to be different across trials
+# if 0, the truly correlated features will be manually assigned to be distinct in each trial 
+# (no overlap)
+
+# cor: correlation
+# beta:- 1 coefficient for the causal feature
+
+n.sim = 500 # repeat the simulation
 
 #-----------------------------------------
 # set up functions
 #-----------------------------------------
 
-#generate data for one trial
+# generate data for one trial
 gen.1.trial <- function(n, n.cor, n.cor.1, cor, beta, t){
   # print(t)
   # print(paste("generate 1 trial, trial", t))
@@ -87,7 +78,7 @@ gen.1.trial <- function(n, n.cor, n.cor.1, cor, beta, t){
 }
 
 
-#generate data for multiple trials
+# generate data for multiple trials
 gen.multi.trial <- function(n.trial.list, n.cor, n.cor.1, cor, beta, t.start){
   dat.list = lapply(1:length(n.trial.list), function(i) {
     gen.1.trial(n = n.trial.list[i], n.cor, n.cor.1, cor, beta, t = t.start + i)
@@ -96,7 +87,7 @@ gen.multi.trial <- function(n.trial.list, n.cor, n.cor.1, cor, beta, t.start){
   xx <- do.call(rbind, lapply(1:length(n.trial.list), function(i) dat.list[[i]]$x))
   yy <- unlist(lapply(1:length(n.trial.list), function(i) dat.list[[i]]$y))
   
-  #trial number
+  # trial number
   tt <- unlist(lapply(1:length(n.trial.list), function(i) dat.list[[i]]$t))
   
   list(x = xx, y = yy, t = tt)
@@ -107,7 +98,7 @@ fit <- function(dat1, dat2){
   dat1.mse <- mean((dat1$y-mean(dat1$y))^2) #train mse
   dat2.mse <- mean((dat2$y-mean(dat2$y))^2) #test mse
   
-  #fit simple linear regression 
+  # fit simple linear regression 
   lm.fit = lm(y~x, dat1)
   
   lm.pred1 = lm.fit$fitted.values #train prediction error
@@ -121,7 +112,7 @@ fit <- function(dat1, dat2){
   if (cor.random == 0) coef.end = n.noise + n.causal + n.cor.1 * n.legacy.trial
   beta.mean <- mean(lm.fit$coefficients[coef.start:coef.end])
   
-  #fit lasso regression model
+  # fit lasso regression model
   lasso.cv <- cv.glmnet(x=dat1$x, y=dat1$y, alpha=1, family="gaussian")
   lasso.pen <- lasso.cv$lambda.min #optimal lambda
   # print(summary(lasso.pen))
@@ -179,22 +170,23 @@ l.cv = function(dat1){ #legacy data
   apply(do.call(rbind, cv.r), 2, mean)
 }
 
+# run one simulation
 simu.1 <- function(n.cor, n.cor.1, cor, beta){
   legacy = gen.multi.trial(n.trial.list = n.legacy.list, n.cor, n.cor.1, cor, beta, t.start = 0)
   future = gen.multi.trial(n.trial.list = n.future.list, n.cor, n.cor.1, cor, beta, t.start = n.legacy.trial)
   
   f <- fit(legacy, future) 
-  #output: lm1.r2, lm2.r2, lasso1.r2, lasso2.r2, beta.mean
+  # output: lm1.r2, lm2.r2, lasso1.r2, lasso2.r2, beta.mean
   k <- k.cv(legacy) #k-fold cv
   l <- l.cv(legacy) #leave-one-study-out cv
   
-  # Legacy trials R-squared, Generalized R-squared", Estimated generalized R-squared w/ 10-fold cv, 
+  # Legacy trials R-squared, Generalized R-squared, Estimated generalized R-squared w/ 10-fold cv, 
   # Estimated generalized R-squared w/ loo cv
   c(f[5], f[1], f[2], k[2], l[2], f[3], f[4], k[4], l[4])
   
 }
 
-#repeat the simulation and calcualte the average legacy mse and future mse
+# repeat the simulation and calcualte the average legacy mse and future mse
 simu.multi <- function(n.cor, n.cor.1, cor, beta){
   mm = replicate(n.sim, simu.1(n.cor, n.cor.1, cor, beta))
   return(apply(mm, 1, mean))
@@ -214,7 +206,11 @@ res1$r2.type <- c("Estimated beta",
 res1$use.method <- c(rep("Simple linear regression", 5),rep("Lasso regression", 4))
 
 
-#check analytically - randomly selected correlated features
+# check analytically randomly selected correlated features
+# assume we do not observe the causal feature x but we know 
+# beta, rho and which features are correlated over the 3 legacy trials
+# suppose we are given a new (not previously seen) observation from 
+# one of the 3 legacy trials and we know which trial the new observation comes from
 v12 = matrix(rep(cor * beta, n.cor.1), nrow = 1)
 v22 = matrix(rep(cor^2, n.cor.1^2), nrow = n.cor.1)
 diag(v22) <- 1
@@ -226,7 +222,10 @@ res4a = c("r2" = beta.analytical, r2.type = "Analytical beta (trial known)", "us
 res5a = c("r2" = beta.analytical, r2.type = "Analytical beta (trial known)", "use.method" = "Lasso regression")
 
 
-#check analytically - nonoverlapping correlated features
+# check analytically
+# suppose we are given a new (not previously seen) observation from one of the 3 legacy trials 
+# but we do not know which trial the new observation comes from
+# assume there is an equal probability that the new observation comes from each of the 3 trials
 v12 = matrix(rep(cor * beta /n.legacy.trial, n.cor.1 * n.legacy.trial), nrow = 1)
 v22 = matrix(rep(0, (n.cor.1 * n.legacy.trial)^2), nrow = n.cor.1 * n.legacy.trial)
 for (i in 0: (n.legacy.trial-1)){
