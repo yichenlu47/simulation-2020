@@ -16,6 +16,7 @@ cor.random <- as.numeric(args[2])
 n.cor <- as.numeric(args[3])
 n.cor.1 <- as.numeric(args[4])
 cor <- as.numeric(args[5])
+n.noise <- as.numeric(args[6])
 
 # global parameters:
 # 3 legacy trials and 1 future trial (n = 600 each)
@@ -26,7 +27,7 @@ n.future.trial = length(n.future.list)
 
 n.causal = 1 # 1 causal feature a.0
 causal.name <- paste0(letters[n.causal], ".0")
-n.noise = 15 # 15 noise features
+# n.noise = 300 # 15 noise features
 noise.name <- paste0("n.",1:n.noise)
 
 # for each trial:
@@ -40,7 +41,7 @@ noise.name <- paste0("n.",1:n.noise)
 
 # cor: correlation
 # beta: coefficient for the causal feature
-
+if (cor.random == 0) n.cor = n.cor.1 * (n.legacy.trial + n.future.trial)
 n.sim = 500 # repeat the simulation
 
 #-----------------------------------------
@@ -175,15 +176,14 @@ simu.1 <- function(n.cor, n.cor.1, cor, beta){
   legacy = gen.multi.trial(n.trial.list = n.legacy.list, n.cor, n.cor.1, cor, beta, t.start = 0)
   future = gen.multi.trial(n.trial.list = n.future.list, n.cor, n.cor.1, cor, beta, t.start = n.legacy.trial)
   
-  f <- fit(legacy, future) 
-  # output: lm1.r2, lm2.r2, lasso1.r2, lasso2.r2, beta.mean
+  f <- fit(legacy, future) #output
   k <- k.cv(legacy) #k-fold cv
   l <- l.cv(legacy) #leave-one-study-out cv
   
-  # Legacy trials R-squared, Generalized R-squared, Estimated generalized R-squared w/ 10-fold cv, 
-  # Estimated generalized R-squared w/ loo cv
-  c(f[5], f[1], f[2], k[2], l[2], f[3], f[4], k[4], l[4])
-  
+  c(f[5], #estimated beta
+    f[1], f[2], k[2], l[2],  # Legacy trials R-squared, Generalized R-squared, Estimated generalized R-squared w/ 10-fold cv, 
+    # Estimated generalized R-squared w/ loo cv from linear
+    f[3], f[4], k[4], l[4])
 }
 
 # repeat the simulation and calcualte the average legacy mse and future mse
@@ -203,8 +203,7 @@ res1$r2.type <- c("Estimated beta",
                   rep(c("Legacy trials R-squared", "Generalized R-squared", 
                         "Estimated generalized R-squared w/ 10-fold cv", 
                         "Estimated generalized R-squared w/ loo cv"), 2))
-res1$use.method <- c(rep("Simple linear regression", 5),rep("Lasso regression", 4))
-
+res1$use.method <- c(rep("Simple linear regression", 5), rep("Lasso regression", 4))
 
 # check analytically randomly selected correlated features
 # assume we do not observe the causal feature x but we know 
@@ -214,12 +213,12 @@ res1$use.method <- c(rep("Simple linear regression", 5),rep("Lasso regression", 
 v12 = matrix(rep(cor * beta, n.cor.1), nrow = 1)
 v22 = matrix(rep(cor^2, n.cor.1^2), nrow = n.cor.1)
 diag(v22) <- 1
-beta.analytical <- mean(v12 %*% solve(v22))
+# beta.analytical <- mean(v12 %*% solve(v22))
 r2.analytical = 1- (beta^2 + 1 - v12 %*% solve(v22) %*% t(v12))/(beta^2 + 1)
 res2a = c("r2" = r2.analytical, r2.type = "Oracle R-squared (trial known)", "use.method" = "Simple linear regression")
 res3a = c("r2" = r2.analytical, r2.type = "Oracle R-squared (trial known)", "use.method" = "Lasso regression")
-res4a = c("r2" = beta.analytical, r2.type = "Analytical beta (trial known)", "use.method" = "Simple linear regression")
-res5a = c("r2" = beta.analytical, r2.type = "Analytical beta (trial known)", "use.method" = "Lasso regression")
+# res4a = c("r2" = beta.analytical, r2.type = "Analytical beta (trial known)", "use.method" = "Simple linear regression")
+# res5a = c("r2" = beta.analytical, r2.type = "Analytical beta (trial known)", "use.method" = "Lasso regression")
 
 
 # check analytically
@@ -237,10 +236,10 @@ r2.analytical <- 1 - (beta^2 + 1 - v12 %*% solve(v22) %*% t(v12))/(beta^2 + 1)
 res2b = c("r2" = r2.analytical, r2.type = "Oracle R-squared (trial unknown)", "use.method" = "Simple linear regression")
 res3b = c("r2" = r2.analytical, r2.type = "Oracle R-squared (trial unknown)", "use.method" = "Lasso regression")
 res4b = c("r2" = beta.analytical, r2.type = "Analytical beta (trial unknown)", "use.method" = "Simple linear regression")
-res5b = c("r2" = beta.analytical, r2.type = "Analytical beta (trial unknown)", "use.method" = "Lasso regression")
+# res5b = c("r2" = beta.analytical, r2.type = "Analytical beta (trial unknown)", "use.method" = "Lasso regression")
 
-res6 <- rbind(res1, res2a, res3a, res4a, res5a, res2b, res3b, res4b, res5b)
-res_final = cbind("n.cor" = n.cor, "n.cor.1" = n.cor.1, "cor" = cor, "beta" = beta, "cor.random" = cor.random, res6)
+res6 <- rbind(res1, res2a, res3a, res2b, res3b, res4b)
+res_final = cbind("n.cor" = n.cor, "n.cor.1" = n.cor.1, "cor" = cor, "beta" = beta, "cor.random" = cor.random, "n.noise" = n.noise, res6)
 
-filename <- paste0("/home/students/yl002013/RRR/res_", n.cor.1, "_", n.cor, "_",cor,"_", beta,".csv")
+filename <- paste0("/home/students/yl002013/RRR/res_", n.cor, "_", n.cor.1, "_", cor,"_", beta, "_", cor.random, "_", n.noise, ".csv")
 write.csv(res_final, filename, row.names = F)

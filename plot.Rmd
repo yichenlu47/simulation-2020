@@ -1,27 +1,35 @@
 ---
 title: "Simulation plot"
 author: "Yichen"
-date: "6/2/2020"
+date: "6/16/2020"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
 options(width = 10000)
-knitr::opts_chunk$set(eval = TRUE, warning = FALSE)
-
+knitr::opts_chunk$set(eval = TRUE, warning = FALSE, eval = TRUE, echo=FALSE, fig.width = 12, fig.height = 4)
+rm(list = ls())
 library(ggplot2)
 library(dplyr)
 library(gridExtra)
 rm(list = ls())
-setwd("/Users/Yichen/Google Drive/Genentech/simulation/060220/res2")
+setwd("/Users/Yichen/Google Drive/Genentech/simulation/061620/res")
 list.filenames<-list.files(pattern=".csv$")
 list <- lapply(1: length(list.filenames), function(i) {
   read.csv(list.filenames[i])
 })
 d <- do.call(rbind, list)
-
+table(d$r2.type)
+d$r2.type <- factor(d$r2.type, levels = c(
+  "Generalized R-squared", 
+  "Estimated generalized R-squared w/ 10-fold cv", 
+  "Estimated generalized R-squared w/ loo cv", 
+  "Oracle R-squared (trial known)", 
+  "Oracle R-squared (trial unknown)",
+  "Legacy trials R-squared",
+  "Analytical beta (trial unknown)",
+  "Estimated beta"))
 beta.check <- d %>% filter(grepl("beta", r2.type, ignore.case = TRUE), cor.random == 0)
-
 
 #Graphing
 thm<-theme(plot.title = element_text(hjust = 0.5, size=14,face="bold"), 
@@ -36,6 +44,7 @@ thm<-theme(plot.title = element_text(hjust = 0.5, size=14,face="bold"),
 ```
 
 # {.tabset .tabset-pills .tabset-fade}
+
 ## Simulation 1 {.tabset .tabset-pills .tabset-fade}
 ### Parameters {.tabset .tabset-pills .tabset-fade}
 * **Parameter**
@@ -45,7 +54,7 @@ thm<-theme(plot.title = element_text(hjust = 0.5, size=14,face="bold"),
     * Outcome $y = \beta x + \epsilon$, $x$ not observed in data
     *	$Q$ candidate correlated features
     *	$q$ truly correlated features with correlation $\rho$ (randomly selected)
-    * 15 noise features
+    * Noise features
 
 * **Outcomes**
   * Oracle $R^2$ (orange solid line)
@@ -55,11 +64,12 @@ thm<-theme(plot.title = element_text(hjust = 0.5, size=14,face="bold"),
 
 * **Detailed explanation**
   * <span style="color:blue">Oracle $R^2$ is calculated analytically
-      * assume we do not observe the causal feature x but we know $\beta$, $\rho$ and which features are correlated over the 3 legacy trials
-      * suppose we are given a new (not previously seen) observation from one of the 3 legacy trials and we **know** which trial the new observation comes from
-      * we then build the best simple linear regression model for predicting the y value and the oracle $R^2$ is derived from this model</span>
+    * Assume we do not observe the causal feature x but we know $\beta$, $\rho$ and which features are correlated over the 3 legacy trials
+    * Suppose we are given a new (not previously seen) observation from one of the 3 legacy trials and we **know** which trial the new observation comes from
+    * Build the best simple linear regression model for predicting the y value and the oracle $R^2$ is derived from this model</span>
 
-  * Generalized $R^2$ is calculated empirically using the model built on legacy data to predict observations from future trial $$R^2 = 1 - \frac{MSPE}{MSE} = 1 - \frac{\frac{1}{n}\sum(y - \hat y)^2}{\frac{1}{n}\sum(y - \overline y)^2}$$
+  * Generalized $R^2$ is calculated empirically using the model built on legacy data to predict observations from future trial 
+$$R^2 = 1 - \frac{MSPE}{MSE} = 1 - \frac{\frac{1}{n}\sum(y - \hat y)^2}{\frac{1}{n}\sum(y - \overline y)^2}$$
 
   * Estimated generalized $R^2$ from 10-fold cross-validation is obtained as follows
     * Combine the data from all 3 legacy trials
@@ -73,97 +83,115 @@ thm<-theme(plot.title = element_text(hjust = 0.5, size=14,face="bold"),
 
 ### Result 1a {.tabset .tabset-pills .tabset-fade}
 
-- **Hypothesis: As number of truly correlated features $q$ increases, the correlated features picked up by the legacy model are more likely to overlap with correlated features in the future trials, which leads to smaller difference between generalized $R^2$ and estimated generalized $\hat R^2$**
-- Fix Q, as q increase, generalized $R^2$ and two $\hat R^2$ all increase towards the oracle $R^2$. The difference between generalized $R^2$ and  $\hat R^2$ decreases as we have a larger proportion of candidate correlated features among candidate correlated features.
-- While $\hat R^2$ from 10-fold cv largely overestimates the generalized $R^2$, $\hat R^2$ from loo cv corrects this gap and does a better job at estimating the generalized $R^2$.
-- <span style="color:blue">Lasso regression performs similarly compared to simple linear regression when we have small number of correlated features </span>
+- **Increase number of truly correlated features**
+  - As number of truly correlated features $q$ increases, the correlated features picked up by the legacy model are more likely to overlap with correlated features in the future trials, which leads to smaller difference between generalized $R^2$ and estimated generalized $\hat R^2$
+  - Fix Q, as q increase, generalized $R^2$ and $\hat R^2$ all increase towards the oracle $R^2$. The difference between generalized $R^2$ and  $\hat R^2$ decreases as we have a larger proportion of candidate correlated features among candidate correlated features.
 
-```{r, echo=FALSE, fig.width = 12, fig.height = 4}
-tmp <- d %>% filter(!grepl("beta", r2.type, ignore.case = TRUE),
-                    !grepl("legacy", r2.type, ignore.case = TRUE),
-                    !grepl("unknown", r2.type, ignore.case = TRUE),
-                    cor.random == 1, n.cor == 15, cor == 0.9, beta == 1)
-tmp$r2.type <- factor(tmp$r2.type, levels = c("Generalized R-squared", "Estimated generalized R-squared w/ 10-fold cv", "Estimated generalized R-squared w/ loo cv", "Oracle R-squared (trial known)", "Oracle R-squared (trial unknown)"))
-ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + facet_wrap(~use.method) + 
+
+- *Two ways of estimating generalized $R^2$*
+  - While $\hat R^2$ from 10-fold cv largely overestimates the generalized $R^2$, $\hat R^2$ from loo cv corrects this gap and does a better job at estimating the generalized $R^2$.
+
+```{r}
+tmp <- d %>% filter(!grepl("beta|legacy|unknown", r2.type, ignore.case = TRUE),
+                    cor.random == 1, n.cor == 30, cor == 0.9, beta == 1, n.noise == 100, use.method == "Simple linear regression")
+
+ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + 
   scale_linetype_manual(values=c("solid", "dashed", "dotted", "solid", "solid")) + 
   geom_line(data = filter(tmp, !grepl("oracle", r2.type, ignore.case = TRUE)), color = "steelblue") + 
   geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial known)"), color = "coral") + 
-  geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial unknown)"), color = "green") + labs(title= "Estimating generalized R-squared: increasing number of truly correlated features (q)", subtitle = "(Number of candidate correlated features Q = 15, \u03C1 = 0.9, \u03B2 = 1)", y="R-squard", x = "Number of truly correlated features q", linetype = "Type") + thm
+  geom_hline(yintercept=0,color = "grey") +
+  labs(title= "Estimating generalized R-squared with increasing number of truly correlated features", 
+       subtitle = "\u03B2 = 1, Simple linear regression with 15 candidate correlated features (\u03C1 = 0.9) and 100 noise features", 
+       y="R-squard", x = "Number of truly correlated features", linetype = "Type") + thm
 ```
 
+- *Different modelling approach* 
+  - Lasso regression performs better than simple linear regression when we have large number of noise features.
 
-- <span style="color:blue">Lasso regression outperforms simple linear regression when we have large number of correlated features </span>
-```{r, echo=FALSE, fig.width = 12, fig.height = 4}
-tmp <- d %>% filter(!grepl("beta", r2.type, ignore.case = TRUE),
-                    !grepl("legacy", r2.type, ignore.case = TRUE),
-                    !grepl("unknown", r2.type, ignore.case = TRUE),
-                    cor.random == 1, n.cor == 250, cor == 0.9, beta == 1)
-
-tmp$r2.type <- factor(tmp$r2.type, levels = c("Generalized R-squared", "Estimated generalized R-squared w/ 10-fold cv", "Estimated generalized R-squared w/ loo cv", "Oracle R-squared (trial known)", "Oracle R-squared (trial unknown)"))
-ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + facet_wrap(~use.method) + 
+```{r, fig.height = 10}
+tmp <- d %>% filter(!grepl("beta|legacy|unknown", r2.type, ignore.case = TRUE),
+                    cor.random == 1, n.cor == 30, cor == 0.9, beta == 1)
+n.noise.labs = c("100 noise features", "200 noise features", "300 noise features")
+names(n.noise.labs) <- c("100", "200", "300")
+ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + facet_wrap(~n.noise * use.method, labeller = labeller(n.noise = n.noise.labs), ncol = 2) + 
   scale_linetype_manual(values=c("solid", "dashed", "dotted", "solid", "solid")) + 
   geom_line(data = filter(tmp, !grepl("oracle", r2.type, ignore.case = TRUE)), color = "steelblue") + 
   geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial known)"), color = "coral") + 
-  geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial unknown)"), color = "green") + labs(title= "Estimating generalized R-squared: increasing number of truly correlated features (q)", subtitle = "(Number of candidate correlated features Q = 250, \u03C1 = 0.9, \u03B2 = 1)", y="R-squard", x = "Number of truly correlated features q", linetype = "Type") + thm
+  geom_hline(yintercept=0,color = "grey") +
+  labs(title= "Estimating generalized R-squared with increasing number of correlated features and noise features", 
+       subtitle = "\u03B2 = 1, 30 candidate correlated features (\u03C1 = 0.9)", 
+       y="R-squard", x = "Number of truly correlated features q", linetype = "Type") + thm
 ```
 
-- With larger coefficient $\beta$, we will also have larger oracle $R^2$
-- We observe larger difference between generalized $R^2$ and $\hat R^2$ from 10-fold cv.
-- $\hat R^2$ from loo cv still does a good job estimating generalized $R^2$.
-```{r, echo=FALSE, fig.width = 12, fig.height = 4}
-tmp <- d %>% filter(!grepl("beta", r2.type, ignore.case = TRUE),
-                    !grepl("legacy", r2.type, ignore.case = TRUE),
-                    !grepl("unknown", r2.type, ignore.case = TRUE),
-                    cor.random == 1, n.cor == 15, cor == 0.9, use.method == "Lasso regression")
-tmp$r2.type <- factor(tmp$r2.type, levels = c("Generalized R-squared", "Estimated generalized R-squared w/ 10-fold cv", "Estimated generalized R-squared w/ loo cv", "Oracle R-squared (trial known)", "Oracle R-squared (trial unknown)"))
+- *Increase coefficient $\beta$*
+  - With larger coefficient $\beta$, we will also have larger oracle $R^2$
+  - We observe larger difference between generalized $R^2$ and $\hat R^2$ from 10-fold cv.
+  - $\hat R^2$ from loo cv still does a good job estimating generalized $R^2$.
+
+```{r}
+tmp <- d %>% filter(!grepl("beta|legacy|unknown", r2.type, ignore.case = TRUE),
+                    cor.random == 1, n.cor == 30, cor == 0.9, use.method == "Lasso regression", n.noise == 300)
 
 beta.labs = c("\u03B2 = 1", "\u03B2 = 10")
 names(beta.labs) <- c("1", "10")
-ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + facet_wrap(~beta, labeller = labeller(beta = beta.labs), ncol = 2) + 
+
+ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + 
+  facet_wrap(~beta, labeller = labeller(beta = beta.labs), ncol = 2) + 
   scale_linetype_manual(values=c("solid", "dashed", "dotted", "solid", "solid")) + 
   geom_line(data = filter(tmp, !grepl("oracle", r2.type, ignore.case = TRUE)), color = "steelblue") + 
   geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial known)"), color = "coral") +
-  labs(title= "Estimating generalized R-squared with different coefficient using Lasso regression", subtitle = "(15 candidate correlated features, \u03C1 = 0.9)", y="R-squard", x = "Number of truly correlated features q") + thm
+  geom_hline(yintercept=0,color = "grey") +
+  labs(title= "Estimating generalized R-squared with different coefficient using Lasso regression", 
+       subtitle = "Lasso regression with 30 candidate correlated features (\u03C1 = 0.9) and 300 noise features", 
+       y="R-squard", x = "Number of truly correlated features q") + thm
 ```
 
-- With larger correlation $\rho$, we will also have larger oracle $R^2$. 
-- While the $\hat R^2$ from 10-fold cv largely overestimate the generalized $R^2$, $\hat R^2$ from loo cv approximates generalized $R^2$ well, only mildly influenced by correlation change.
-```{r, echo=FALSE, fig.width = 12, fig.height = 4}
-tmp <- d %>% filter(!grepl("beta", r2.type, ignore.case = TRUE),
-                    !grepl("legacy", r2.type, ignore.case = TRUE),
-                    !grepl("unknown", r2.type, ignore.case = TRUE),
-                    cor.random == 1, n.cor == 15, beta == 1, use.method == "Lasso regression")
-tmp$r2.type <- factor(tmp$r2.type, levels = c("Generalized R-squared", "Estimated generalized R-squared w/ 10-fold cv", "Estimated generalized R-squared w/ loo cv", "Oracle R-squared (trial known)", "Oracle R-squared (trial unknown)"))
+- *Increase correlation $\rho$*
+  - With larger correlation $\rho$, we will also have larger oracle $R^2$. 
+  - While the $\hat R^2$ from 10-fold cv largely overestimate the generalized $R^2$, $\hat R^2$ from loo cv approximates generalized $R^2$ well, only mildly influenced by correlation change.
+  
+```{r}
+tmp <- d %>% filter(!grepl("beta|legacy|unknown", r2.type, ignore.case = TRUE),
+                    cor.random == 1, n.cor == 30, beta == 1, use.method == "Lasso regression", n.noise == 300)
 cor.labs = c("\u03C1 = 0.5", "\u03C1 = 0.7", "\u03C1 = 0.9")
 names(cor.labs) <- c("0.5", "0.7", "0.9")
-ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + facet_wrap(~cor, labeller = labeller(cor = cor.labs), ncol = 3) + 
+ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + 
+  facet_wrap(~cor, labeller = labeller(cor = cor.labs), ncol = 3) + 
   scale_linetype_manual(values=c("solid", "dashed", "dotted", "solid", "solid")) + 
   geom_line(data = filter(tmp, !grepl("oracle", r2.type, ignore.case = TRUE)), color = "steelblue") + 
   geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial known)"), color = "coral") +
-  labs(title= "Estimating generalized R-squared with different correlation using Lasso regression", subtitle = "(15 candidate correlated features, \u03B2 = 1)", y="R-squard", x = "Number of truly correlated features q", linetype = "Type") + thm
+  geom_hline(yintercept=0,color = "grey") +
+  labs(title= "Estimating generalized R-squared with different correlation using Lasso regression", 
+       subtitle = "(\u03B2 = 1, Lasso regression with 30 candidate correlated features and 300 noise features", 
+       y="R-squard", x = "Number of truly correlated features q", linetype = "Type") + thm
 ```
 
 
 
 ### Result 1b {.tabset .tabset-pills .tabset-fade}
 
-- **Hypothesis: As candidate correlated features $Q$ increases, the correlated features in the legacy model are less likely to overlap with correlated features in the future trials. This leads to larger difference in generalized $R^2$ and $\hat R^2$.**
-- Fix number of truly correlated feautures $q = 15$, as Q increase, both $R^2$ and $\hat R^2$ from 10-fold cv or loo cv decrease. But generalized $\hat R^2$ decreases much faster. We observe a larger difference between $R^2$ and $\hat R^2$ as the proportion of truly correlated features among candidate correlated features decreases. 
-- Similarly, $\hat R^2$ from 10-fold cv overestimates the generalized $R^2$, $\hat R^2$ from loo cv performs better at estimating the generalized $R^2$.
-- <span style="color:blue">Lasso regression performs similarly compared to simple linear regression when we only have 15 truly correlated features </span>
+- **Increase number of candidate correlated features**
+  - As candidate correlated features $Q$ increases, the correlated features in the legacy model are less likely to overlap with correlated features in the future trials. This leads to larger difference in generalized $R^2$ and $\hat R^2$.**
+  - Fix number of truly correlated feautures $q$, as Q increase, both $R^2$ and $\hat R^2$ from 10-fold cv or loo cv decrease. But generalized $\hat R^2$ decreases much faster. We observe a larger difference between $R^2$ and $\hat R^2$ as the proportion of truly correlated features among candidate correlated features decreases. 
+  
+  
+- *Two ways of estimating generalized $R^2$*
+  - Similarly, $\hat R^2$ from 10-fold cv overestimates the generalized $R^2$, $\hat R^2$ from loo cv performs better at estimating the generalized $R^2$.
+  
+- *Different ways of modelling approach* 
+  - Lasso regression consistently performs better compared to simple linear regression.
 
-```{r, echo=FALSE, fig.width = 12, fig.height = 4}
-tmp <- d %>% filter(!grepl("beta", r2.type, ignore.case = TRUE),
-                    !grepl("legacy", r2.type, ignore.case = TRUE),
-                    !grepl("unknown", r2.type, ignore.case = TRUE),
-                    cor.random == 1, n.cor.1 == 15, cor == 0.9, beta == 1)
-
-tmp$r2.type <- factor(tmp$r2.type, levels = c("Generalized R-squared", "Estimated generalized R-squared w/ 10-fold cv", "Estimated generalized R-squared w/ loo cv", "Oracle R-squared (trial known)", "Oracle R-squared (trial unknown)"))
+```{r}
+tmp <- d %>% filter(!grepl("beta|legacy|unknown", r2.type, ignore.case = TRUE),
+                    cor.random == 1, n.cor.1 == 15, cor == 0.9, beta == 1, n.noise == 300)
 ggplot(tmp, aes(x = n.cor, y = r2, linetype = r2.type)) + geom_line() + facet_wrap(~use.method) + 
   scale_linetype_manual(values=c("solid", "dashed", "dotted", "solid", "solid")) + 
   geom_line(data = filter(tmp, !grepl("oracle", r2.type, ignore.case = TRUE)), color = "steelblue") + 
   geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial known)"), color = "coral") +
-  labs(title= "Estimating generalized R-squared: increasing number of candidate correlated features Q", subtitle = "(15 truly correlated features, \u03C1 = 0.9, \u03B2 = 1)", y="R-squard", x = "Number of truly correlated features q", linetype = "Type") + thm
+  geom_hline(yintercept=0,color = "grey") +
+  labs(title= "Estimating generalized R-squared: increasing number of candidate correlated features", 
+       subtitle = "\u03B2 = 1, 15 truly correlated features (\u03C1 = 0.9)", 
+       y="R-squard", x = "Number of truly correlated features q", linetype = "Type") + thm
 ```
 
 
@@ -171,68 +199,102 @@ ggplot(tmp, aes(x = n.cor, y = r2, linetype = r2.type)) + geom_line() + facet_wr
 
 * Updated simulation
   * Distinct correlated features in each trial (no overlap)
-  * <span style="color:blue">An additional oracle $R^2$ is calculated analytically (green solid line)
-    * assume we do not observe the causal feature $x$ but we know $\beta$, $\rho$ and which features are correlated over the 3 legacy trials. 
-    * the correlated features in each legacy trial will be distinct and there's no overlap.
+  * <span style="color:blue">An additional oracle $R^2$ is calculated analytically (pink solid line)
+    * Assume we do not observe the causal feature $x$ but we know $\beta$, $\rho$ and which features are correlated over the 3 legacy trials. 
+    * The correlated features in each legacy trial are **distinct** and there's no overlap.
     * suppose we are given a new (not previously seen) observation from one of the 3 legacy trials but we **do not know** which trial the new observation comes from
-    * assume there is an equal probability that the new observation comes from each of the 3 trials
-    * we then build the best simple linear regression model for predicting the y value , and the oracle $R^2$ is derived from this model.</span>
+    * Assume there is an equal probability that the new observation comes from each of the 3 trials
+    * Build the best simple linear regression model for predicting the y value , and the oracle $R^2$ is derived from this model.</span>
+    
+- **Increase number of correlated features**
+  - With simple linear regression, generalized $R^2$ and $\hat R^2$ increase as we have more correlated features when holding the number of noise features constant. 
+  
+- *Two ways of estimating generalized $R^2$*
+  - $\hat R^2$ from 10-fold cv largely overestimates the generalized $R^2$. $\hat R^2$ from 10-fold cv closely approximates the oracle $R^2$ assuming the trial number is unknown.
+  - In contrast, $\hat R^2$ from loo cv corrects this gap and does a better job at estimating the generalized $R^2$.
+  
+```{r}
+tmp <- d %>% filter(!grepl("beta|legacy", r2.type, ignore.case = TRUE),
+                    cor.random == 0, cor == 0.9, beta == 1, n.noise == 100, use.method == "Simple linear regression")
 
+ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + 
+  scale_linetype_manual(values=c("solid", "dashed", "dotted", "solid", "solid")) + 
+  geom_line(data = filter(tmp, !grepl("oracle", r2.type, ignore.case = TRUE)), color = "steelblue") + 
+  geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial known)"), color = "coral") +
+  geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial unknown)"), color = "orange") +
+  geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial unknown)"), color = "pink") +
+  geom_hline(yintercept=0,color = "grey") +
+  labs(title= "Estimating generalized R-squared with increasing number of correlated features", 
+       subtitle = "\u03B2 = 1, \u03C1 = 0.9, Simple linear regression with 100 noise features ", 
+       y="R-squard", x = "Number of correlated features", linetype = "Type") + thm
+```
 
-- <span style="color:blue">Lasso regression returns higher generalized $R^2$ and $\hat R^2$ overall. $\hat R^2$ from loo cv approximates generalized $R^2$ slightly better compared to that of simple linear regression.</span>
-```{r, echo=FALSE, fig.width = 12, fig.height = 4}
-tmp <- d %>% filter(!grepl("beta", r2.type, ignore.case = TRUE),
-                    !grepl("legacy", r2.type, ignore.case = TRUE),
-                    cor.random == 0, n.cor == 200, cor == 0.9, beta == 1)
+- *Different modelling approach* 
+  - Lasso regression returns higher generalized $R^2$ and $\hat R^2$ overall. $\hat R^2$ from loo cv approximates generalized $R^2$ better compared to that of simple linear regression.
+  - As we increase the number of noise features, the advantange of using Lasso regression becomes more obvious
 
-tmp$r2.type <- factor(tmp$r2.type, levels = c("Generalized R-squared", "Estimated generalized R-squared w/ 10-fold cv", "Estimated generalized R-squared w/ loo cv", "Oracle R-squared (trial known)", "Oracle R-squared (trial unknown)"))
-cor.labs = c("\u03C1 = 0.5", "\u03C1 = 0.7", "\u03C1 = 0.9")
-names(cor.labs) <- c("0.5", "0.7", "0.9")
-
-ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + facet_wrap(~use.method) + 
+```{r, fig.height = 10}
+tmp <- d %>% filter(!grepl("beta|legacy", r2.type, ignore.case = TRUE),
+                    cor.random == 0, cor == 0.9, beta == 1)
+n.noise.labs = c("100 noise features", "200 noise features", "300 noise features")
+names(n.noise.labs) <- c("100", "200", "300")
+ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + 
+  facet_wrap(~n.noise * use.method, labeller = labeller(n.noise = n.noise.labs), ncol = 2) + 
   scale_linetype_manual(values=c("solid", "dashed", "dotted", "solid", "solid")) + 
   geom_line(data = filter(tmp, !grepl("oracle", r2.type, ignore.case = TRUE)), color = "steelblue") + 
   geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial known)"), color = "coral") + 
-  geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial unknown)"), color = "green") + labs(title= "Estimating generalized R-squared with non-overlapping correlated features", subtitle = "(\u03C1 = 0.9, \u03B2 = 1)", y="R-squard", x = "Number of correlated features in each trial", linetype = "Type") + thm
+  geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial unknown)"), color = "pink") +
+  geom_hline(yintercept=0,color = "grey") +
+  labs(title= "Estimating generalized R-squared with Simple linear regression vs Lasso regression", 
+       subtitle = "\u03B2 = 1, distinct correlated features (\u03C1 = 0.9) and 300 noise features per trial", 
+       y="R-squard", x = "Number of correlated features", linetype = "Type") + thm
 ```
 
+- *Increase coefficient $\beta$*
+  - With stronger correlation $\rho$, we observe larger generalized $R^2$ and $\hat R^2$. Oracle $R^2$ based on both assumptions increase with increasing number of correlated features and coefficient. 
+  
+```{r}
+tmp <- d %>% filter(!grepl("beta|legacy", r2.type, ignore.case = TRUE),
+                    cor.random == 0, cor == 0.9, use.method == "Lasso regression", n.noise == 300)
 
-- <span style="color:blue">With stronger correlation $\rho$, we observe larger generalized $R^2$ and $\hat R^2$. Oracle $R^2$ based on both assumptions increase with increasing number of truly correlated features and coefficient. 
-- Overall, lasso regression returns higher generalized $R^2$ and $\hat R^2$ compared to simple linear regression.</span>
-```{r, echo=FALSE, fig.width = 12, fig.height = 4}
-tmp <- d %>% filter(!grepl("beta", r2.type, ignore.case = TRUE),
-                    !grepl("legacy", r2.type, ignore.case = TRUE),
-                    cor.random == 0, n.cor.1 > 15, n.cor == 200, beta == 1, use.method == "Lasso regression")
-
-tmp$r2.type <- factor(tmp$r2.type, levels = c("Generalized R-squared", "Estimated generalized R-squared w/ 10-fold cv", "Estimated generalized R-squared w/ loo cv", "Oracle R-squared (trial known)", "Oracle R-squared (trial unknown)"))
-ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + facet_wrap(~cor, labeller = labeller(cor = cor.labs),  ncol = 3) + 
+ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + 
+  facet_wrap(~beta, labeller = labeller(beta = beta.labs),  ncol = 3) +
   scale_linetype_manual(values=c("solid", "dashed", "dotted", "solid", "solid")) + 
   geom_line(data = filter(tmp, !grepl("oracle", r2.type, ignore.case = TRUE)), color = "steelblue") + 
   geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial known)"), color = "coral") + 
-  geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial unknown)"), color = "green") + labs(title= "Estimating generalized R-squared with different correlation using Lasso regression", subtitle = "(\u03B2 = 1)", y="R-squard", x = "Number of correlated features in each trial", linetype = "Type") + thm
+  geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial unknown)"), color = "pink") + 
+  geom_hline(yintercept=0,color = "grey") +
+  labs(title= "Estimating generalized R-squared with different coefficient", 
+       subtitle = "Lasso regression with distinct correlated features (\u03C1 = 0.9) and 300 noise features per trial", 
+       y="R-squard", x = "Number of correlated features in each trial", linetype = "Type") + thm
 ```
 
-```{r, echo=FALSE, fig.width = 12, fig.height = 4}
-tmp <- d %>% filter(!grepl("beta", r2.type, ignore.case = TRUE),
-                    !grepl("legacy", r2.type, ignore.case = TRUE),
-                    cor.random == 0, n.cor.1 > 15, n.cor == 200, beta == 1, use.method == "Simple linear regression")
+- *Increase correlation $\rho$*
+  - With larger correlation $\rho$, we will also have larger oracle $R^2$ with trial number known or unknown. 
+  
+```{r}
+tmp <- d %>% filter(!grepl("beta|legacy", r2.type, ignore.case = TRUE),
+                    cor.random == 0, beta == 1, use.method == "Lasso regression", n.noise == 300)
 
-tmp$r2.type <- factor(tmp$r2.type, levels = c("Generalized R-squared", "Estimated generalized R-squared w/ 10-fold cv", "Estimated generalized R-squared w/ loo cv", "Oracle R-squared (trial known)", "Oracle R-squared (trial unknown)"))
-ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + facet_wrap(~cor, labeller = labeller(cor = cor.labs),  ncol = 3) + 
+ggplot(tmp, aes(x = n.cor.1, y = r2, linetype = r2.type)) + geom_line() + 
+  facet_wrap(~cor, labeller = labeller(cor = cor.labs),  ncol = 3) + 
   scale_linetype_manual(values=c("solid", "dashed", "dotted", "solid", "solid")) + 
   geom_line(data = filter(tmp, !grepl("oracle", r2.type, ignore.case = TRUE)), color = "steelblue") + 
   geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial known)"), color = "coral") + 
-  geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial unknown)"), color = "green") + labs(title= "Estimating generalized R-squared with different correlation using Simple linear regression", subtitle = "(\u03B2 = 1)", y="R-squard", x = "Number of correlated features in each trial", linetype = "Type") + thm
+  geom_line(data = filter(tmp, r2.type == "Oracle R-squared (trial unknown)"), color = "pink") + 
+  geom_hline(yintercept=0,color = "grey") +
+  labs(title= "Estimating generalized R-squared with different correlation",
+       subtitle = "\u03B2 = 1, Lasso regression with distinct correlated features and 300 noise features per trial", y="R-squard", x = "Number of correlated features in each trial", linetype = "Type") + thm
 ```
 
-## Calculation {.tabset .tabset-pills .tabset-fade}
+## Oracle R-squared Calculation {.tabset .tabset-pills .tabset-fade}
 ### Observed causal feature {.tabset .tabset-pills .tabset-fade}
-Oracle $R^2$ when we get to observe the causal feature $X$ is calculated as follows
+- **Scenario**: 1 legacy trial with 1 causal feature $X$ and $X$ is observed
 
-$\begin{aligned}
-y = \beta X + \epsilon, X \sim N(0, 1), \epsilon \sim N(0, 1) \\
-y|X = x \sim N(\beta x, 1)\\
-
+$$\begin{aligned}
+y &= \beta X + \epsilon, X \sim N(0, 1), \epsilon \sim N(0, 1) \\
+y|X &= x \sim N(\beta x, 1)\\
+\\
 var(Y) 
 &= var(\beta X + \epsilon) \\
 &= \beta^2 var(X) + var(\epsilon) + 2Cov(X, \epsilon) \\
@@ -244,19 +306,20 @@ cov(y, X)
 &= \beta E[X^2] + E[X]E[\epsilon] \\
 &= \beta \\
 \\
-R^2 = 1 - \frac{var(y|x)}{var(y)} = 1 - \frac{var(\epsilon)}{\beta ^ 2var(x) + var(\epsilon)} = 1 - \frac{1}{\beta^2+1}\\
-
-\end{aligned}$
+R^2 &= 1 - \frac{var(y|x)}{var(y)} \\
+&= 1 - \frac{var(\epsilon)}{\beta ^ 2var(x) + var(\epsilon)}\\
+&= 1 - \frac{1}{\beta^2+1}\\
+\end{aligned}$$
 
 ### Causal feature not observed and trial number available {.tabset .tabset-pills .tabset-fade}
+#### 1 legacy trial with 1 correlated feature {.tabset .tabset-pills .tabset-fade}
+- **Scenario**: 1 legacy trial with 1 correlated feature $\tilde{X}$
 
-**Scenario 1**: We only have 1 legacy trial with 1 correlated feature $\tilde{X}$ such that $\tilde{X}|X = x = \rho x + \sqrt{1-\rho^2} Z$
-
-Oracle $R^2$ is calculated as follows:
-
-$\begin{aligned}
-y = \tilde{\beta} \tilde{X} + \tilde{\epsilon}, \tilde{X} \sim N(0, 1) \\
-cov(\tilde{X}, X) = \rho Var(X) Var(\tilde{X}) = \rho \\
+$$\begin{aligned}
+\tilde{X}|X = x &= \rho x + \sqrt{1-\rho^2} Z\\
+y &= \tilde{\beta} \tilde{X} + \tilde{\epsilon}, \tilde{X} \sim N(0, 1) \\
+\\
+cov(X, \tilde{X}) &= \rho Var(X) Var(\tilde{X}) = \rho \\
 \\
 cov(y, \tilde{X}) 
 &= E[y\tilde{X}] - E[y]E[\tilde{X}] \\
@@ -267,33 +330,32 @@ cov(y, \tilde{X})
 &= \beta E[X E(\tilde{X}|X)]\\
 &= \beta E[X \rho X]\\
 &= \beta \rho\\
-\end{aligned}$
+\\
 
-$\begin{aligned}
 \begin{bmatrix}
-y\\ X\\ \tilde{X}\\
+y\\ \tilde{X}\\
 \end{bmatrix} 
-\sim N \left(
-\begin{bmatrix} 0\\ 0\\ 0 \end{bmatrix}
+&\sim N \left(
+\begin{bmatrix} 0\\ 0 \end{bmatrix}
 ,
 \begin{bmatrix} 
-\beta^2 + 1 & \beta & \beta\rho\\ 
-\beta & 1 & \rho^2 \\ 
-\beta\rho & \rho^2 & 1 \end{bmatrix} \right)
-\end{aligned}$ 
-
-$\begin{aligned}
+\beta^2 + 1 & \beta\rho\\ 
+\beta\rho  & 1 \end{bmatrix} \right) \\
+\\
 R^2 
 &= 1 - \frac{Var(y|\tilde{X})}{Var(y)} \\
 &= 1- \frac{\beta^2 + 1 - \beta^2 \rho ^2}{\beta^2 + 1} \\
-\end{aligned}$
+\\
+\end{aligned}$$
 
-**Scenario 2**: We only have 1 legacy trial with 2 correlated feature  $\tilde{X_1}, \tilde{X_2}$ both with correlation $\rho$ such that $\tilde{X_1}|X = x = \rho x + \sqrt{1-\rho^2} Z_1$, 
-$\tilde{X_2}|X = x = \rho x + \sqrt{1-\rho^2} Z_2$
 
-Oracle $R^2$ is calculated as follows:
+#### 1 legacy trial with 2 correlated features {.tabset .tabset-pills .tabset-fade}
+- **Scenario**: 1 legacy trial with 2 correlated features $\tilde{X_1}, \tilde{X_2}$ both with correlation $\rho$
 
-$\begin{aligned}
+$$\begin{aligned}
+\tilde{X_1}|X = x &= \rho x + \sqrt{1-\rho^2} Z_1 \\
+\tilde{X_2}|X = x &= \rho x + \sqrt{1-\rho^2} Z_2 \\
+\\
 cov(\tilde{X_1}, \tilde{X_2}) 
 &= E[\tilde{X_1} \tilde{X_2}] - E[\tilde{X_1}]E[\tilde{X_2}] \\
 &= E[\tilde{X_1} E[\tilde{X_2}| \tilde{X_1}] - 0 \\
@@ -302,84 +364,256 @@ cov(\tilde{X_1}, \tilde{X_2})
 &= E[\tilde{X_1} \rho E[x | \tilde{X_1}]] \\
 &= E[\tilde{X_1} \rho^2] \\
 &= \rho ^ 2\\
-\end{aligned}$
-
-
-$\begin{aligned}
+\\
+cov(X, \tilde{X}) &= \rho Var(X) Var(\tilde{X}) = \rho \\
+cov(y, \tilde{X_1}) &= cov(y, \tilde{X_1}) = \beta \rho\\
+\\
 \begin{bmatrix}
 y\\ \tilde{X}_1\\ \tilde{X}_2\\
 \end{bmatrix} 
-\sim N \left( \begin{bmatrix}  0\\ 0\\ 0 \end{bmatrix},
+&\sim N \left( \begin{bmatrix}  0\\ 0\\ 0 \end{bmatrix},
 \begin{bmatrix} 
 \beta^2 + 1 & \beta\rho & \beta\rho\\ 
 \beta\rho & 1 & \rho^2\\ 
 \beta\rho & \rho^2 & 1 \end{bmatrix} \right)
-\end{aligned}$
-
-
-### Causal feature not observed and trial unknown {.tabset .tabset-pills .tabset-fade}
-**Scenario 1**: We have 2 legacy trials: legacy trial 1 has correlated feature $\tilde{X_1}$ and legacy trial 2 has correlated feature $\tilde{X_2}$ both with correlation $\rho$ such that
-
-$$\begin{aligned}
-\tilde{X_1}|X = x, t = 1 = \rho x + \sqrt{1-\rho^2} Z_1 \\
-\tilde{X_2}|X = x, t = 2 = \rho x + \sqrt{1-\rho^2} Z_2 \\
+\\
+R^2
+&= 1 - \frac{var(y|\tilde{X}_1, \tilde{X}_2)}{\beta^2 + 1} \\
+&= 1 - \frac{\beta^2 + 1 - \frac{2 \beta^2 \rho^2}{(1 + \rho^2)}}{\beta^2 + 1}\\
+\\
 \end{aligned}$$
 
-The covariance matrix between $y, \tilde{X_1}, \tilde{X_2}$ is presented and oracle $R^2$ is calculated as follows.
 
-$\begin{aligned}
+- *Alternative method*: use average of $\tilde{X_1}$ and $\tilde{X_2}$
+
+$$\begin{aligned}
+\tilde{X}_{avg} &= \frac{1}{2} (\tilde{X_1} + \tilde{X_2}) = \rho x + \frac{1}{2}\sqrt{1-\rho^2} Z_1 + \frac{1}{2}\sqrt{1-\rho^2} Z_2 \\
+\\
+var(\tilde{X}_{avg}) 
+&= var(\frac{1}{2} (\tilde{X_1} + \tilde{X_2})) \\
+&= \frac{1}{4} [var(\tilde{X_1}) + var(\tilde{X_2}) + 2cov(\tilde{X_1}, \tilde{X_2})] \\
+&= \frac{1}{4} (2 + 2 \rho^2) \\
+&= \frac{1}{2} + \frac{1}{2} \rho^2\\
+\\
+cov(y, \tilde{X}_{avg}) 
+&= E[y\tilde{X}_{avg}] - E[y]E[\tilde{X}_{avg}] \\
+&= E[y \frac{1}{2} (\tilde{X_1} + \tilde{X_2})] \\
+&= E[y \tilde{X_1}] = cov(y, \tilde{X_1})\\
+&= \beta \rho\\
+\\
+\begin{bmatrix}
+y\\  \tilde{X}_{avg}\\
+\end{bmatrix} 
+&\sim N \left( \begin{bmatrix} 0\\ 0 \end{bmatrix},
+\begin{bmatrix} 
+\beta^2 + 1  & \beta\rho\\ 
+\beta\rho & \frac{1}{2} + \frac{1}{2} \rho^2 \end{bmatrix} \right)
+\\
+\end{aligned}$$
+
+#### 1 legacy trial with h correlated features {.tabset .tabset-pills .tabset-fade}
+- **Generalization**: 1 legacy trial with h correlated features $\tilde{X_1}, ..., \tilde{X_ h}$ all with correlation $\rho$
+
+$$\begin{aligned}
+var( \tilde{X}_{avg} ) 
+&= var \left[ \frac{1}{h} ( \tilde{X_1} + \tilde{X_2} + ... + \tilde{X_h} ) \right] \\
+&= var \left[ \rho x  + \frac{1}{h} \sqrt{ 1- \rho ^2 } ( Z_1 + Z_2 + ... Z_h )  \right] \\
+&= \rho ^ 2 + \frac{1}{h^2} ( 1 - \rho ^2 ) \left[ var( Z_1 ) + var( Z_2 ) + ... var( Z_h ) \right] \\
+&= \rho ^ 2 + \frac{1}{h} ( 1 - \rho ^2 ) \\
+&= \frac{1}{h} + \left( 1 - \frac{1}{h} \right) \rho ^2 \\
+\\
+\begin{bmatrix}
+y\\  \tilde{X}_{avg}\\
+\end{bmatrix} 
+&\sim N \left( \begin{bmatrix} 0\\ 0 \end{bmatrix},
+\begin{bmatrix} 
+\beta^2 + 1  & \beta\rho\\ 
+\beta\rho & \frac{1}{h} + (1 - \frac{1}{h}) \rho^2 \end{bmatrix} \right)
+\\R^2
+&= 1 - \frac{\beta^2 + 1 - \frac{\beta^2 \rho^2}{\frac{1}{h} + (1 - \frac{1}{h}) \rho^2 }}{\beta^2 + 1}\\
+\\
+\end{aligned}$$
+
+
+### Causal feature not observed and trial number available {.tabset .tabset-pills .tabset-fade}
+#### 2 legacy trials with 1 correlated feature per trial {.tabset .tabset-pills .tabset-fade}
+- **Scenario**: Legacy trial 1 has correlated feature $\tilde{X_1}$ and legacy trial 2 has correlated feature $\tilde{X_2}$ both with correlation $\rho$
+
+$$\begin{aligned}
+\tilde{X_1}|X = x, t = 1 &= \rho x + \sqrt{1-\rho^2} Z_1 \\
+\tilde{X_2}|X = x, t = 2 &= \rho x + \sqrt{1-\rho^2} Z_2 \\
+\\
 cov(\tilde{X_1}, \tilde{X_2}) 
 &= E[\tilde{X_1} \tilde{X_2}] - E[\tilde{X_1}] E[\tilde{X_2}]\\
 &= E[\tilde{X_1} \tilde{X_2}|t = 1] Pr(t = 1) + E[\tilde{X_1} \tilde{X_2}|t = 2] Pr(t = 2)\\
 &= \frac{1}{2} * 0 *  + \frac{1}{2} * 0\\
-&= 0
+&= 0\\
 \\
 cov(X, \tilde{X_1}) 
 &= E[X\tilde{X_1}] - E[X]E[\tilde{X_1}] \\
 &= E[X\tilde{X_1}|t = 1] Pr(t = 1) + E[X\tilde{X_1}|t = 2] Pr(t = 2)\\
-&= \frac{1}{2}E[X E(\tilde{X_1}|X)]+ \frac{1}{2} * 0\\
+&= \frac{1}{2}E[X E(\tilde{X_1}|X, t = 1)]+ \frac{1}{2} * 0\\
 &= \frac{1}{2}E[X E(\rho X + \sqrt{1-\rho^2} Z_{1}|X)] \\
 &= \frac{\rho}{2}\\
 \\
-cov(Y, \tilde{X_1}) 
-&= E[Y\tilde{X_1}] - E[Y]E[\tilde{X_1}] \\
-&= E[\tilde{X_1} E[Y|\tilde{X_1}]] \\
+cov(y, \tilde{X_1}) 
+&= E[y\tilde{X_1}] - E[y]E[\tilde{X_1}] \\
+&= E[\tilde{X_1} E[y|\tilde{X_1}]] \\
 &= E[\tilde{X_1} E[\beta x + \epsilon|\tilde{X_1}]]\\
 &= \beta E[\tilde{X_1} E[X|\tilde{X_1}]]\\
+&= \beta cov(X, \tilde{X_1})\\
 &= \frac{\beta \rho}{2}
-\end{aligned}$
-
-
-
-$\begin{aligned}
+\\
 \begin{bmatrix}
 y\\  \tilde{X}_1\\ \tilde{X}_2\\
 \end{bmatrix} 
-\sim N \left( \begin{bmatrix} 0\\ 0\\ 0 \end{bmatrix},
+&\sim N \left( \begin{bmatrix} 0\\ 0\\ 0 \end{bmatrix},
 \begin{bmatrix} 
 \beta^2 + 1  & \frac{\beta\rho}{2} & \frac{\beta\rho}{2}\\ 
 \frac{\beta\rho}{2}  & 1 & 0\\ 
-\frac{\beta\rho}{2} & 0 & 1 \end{bmatrix} \right)
+\frac{\beta\rho}{2} & 0 & 1 \end{bmatrix} \right)\\
 \\
-\end{aligned}$
+R^2
+&= 1 - \frac{var(y|\tilde{X}_1, \tilde{X}_2)}{\beta^2 + 1} \\
+&= 1 - \frac{\beta^2 + 1 - \frac{\beta^2 \rho^2}{2}}{\beta^2 + 1}
+\end{aligned}$$
 
-**Scenario 2**: We have 3 legacy trials: legacy trial 1 has correlated feature $\tilde{X_1}, \tilde{X_2}$, and legacy trial 2 has correlated feature $\tilde{X_3}, \tilde{X_4}$ and legacy trial 3 has correlated features $\tilde{X_5}, \tilde{X_6}$ such that 
+- *Alternative method*: use average of $\tilde{X_1}$ and $\tilde{X_2}$
 
 $$\begin{aligned}
-\tilde{X_1}|X = x, t = 1 = \rho x + \sqrt{1-\rho^2} Z_1 \\
-\tilde{X_2}|X = x, t = 1 = \rho x + \sqrt{1-\rho^2} Z_2 \\
-\tilde{X_3}|X = x, t = 2 = \rho x + \sqrt{1-\rho^2} Z_3 \\
-\tilde{X_4}|X = x, t = 2 = \rho x + \sqrt{1-\rho^2} Z_4 \\
-\tilde{X_5}|X = x, t = 3 = \rho x + \sqrt{1-\rho^2} Z_5 \\
-\tilde{X_6}|X = x, t = 3 = \rho x + \sqrt{1-\rho^2} Z_6 \\
+\tilde{X}_{avg} &= \frac{1}{2} ( \tilde{X_1} + \tilde{X_2} ) \\
+\\
+var( \tilde{X}_{avg}) 
+&= var( \frac{1}{2} ( \tilde{X_1} + \tilde{X_2})) \\
+&= \frac{1}{4} [ var( \tilde{X_1} ) + var( \tilde{X_2} ) ] \\
+&= \frac{1}{2}
+\\
+cov(X, \tilde{X}_{avg}) 
+&= E[ X \tilde{X}_{avg} ] - E[X]E[ \tilde{X}_{avg} ] \\
+&= E[ X \frac{1}{2} ( \tilde{X_1} + \tilde{X_2} ) ] \\
+&= \frac{1}{2} E[ X \tilde{X_1} ] + \frac{1}{2} E[ X \tilde{X_2} ] \\
+&= E[ X \tilde{X_1} ] = cov( X, \tilde{X_1} )\\
+&= \frac{\rho}{2}\\
+\\
+cov(y, \tilde{X}_{avg}) 
+&= \frac{1}{2} \beta \rho\\
+\\
+\begin{bmatrix}
+y\\  \tilde{X}_{avg}\\
+\end{bmatrix} 
+&\sim N \left( \begin{bmatrix} 0\\ 0 \end{bmatrix},
+\begin{bmatrix} 
+\beta^2 + 1  & \frac{1}{2} \beta \rho\\ 
+\frac{1}{2} \beta \rho & \frac{1}{2} \end{bmatrix} \right)
+\\
+R^2
+&= 1 - \frac{var(y|\tilde{X}_1, \tilde{X}_2)}{\beta^2 + 1} \\
+&= 1 - \frac{\beta^2 + 1 - \left( \frac{1}{2} \beta \rho \right) ^2 \left( \frac{1}{2} \right) ^{-1}}{\beta^2 + 1}\\
+&= 1 - \frac{\beta^2 + 1 - \frac{\beta^2 \rho^2}{2}}{\beta^2 + 1}
 \\
 \end{aligned}$$
 
-$\begin{aligned}
-cov(\tilde{X_1}, \tilde{X_3}) 
-&= E[\tilde{X_1} \tilde{X_3}] - E[\tilde{X_1}] E[\tilde{X_3}]\\
-&= E[\tilde{X_1} \tilde{X_3}|t = 1] Pr(t = 1) + E[\tilde{X_1} \tilde{X_3}|t = 2] Pr(t = 2) + E[\tilde{X_1} \tilde{X_3}|t = 3] Pr(t = 3)\\
-& = 0\\
+
+#### k legacy trials with 1 correlated feature per trial {.tabset .tabset-pills .tabset-fade}
+
+$$\begin{aligned}
+R^2
+&= 1 - \frac{var(y|\tilde{X}_1, \tilde{X}_2)}{\beta^2 + 1} \\
+&= 1 - \frac{\beta^2 + 1 - \frac{\beta^2 \rho^2}{k}}{\beta^2 + 1}
+\end{aligned}$$
+
+#### 2 legacy trials with 2 correlated features per trial {.tabset .tabset-pills .tabset-fade}
+**Scenario **: Legacy trial 1 has correlated feature $\tilde{X_1}, \tilde{X_2}$, and legacy trial 2 has correlated feature $\tilde{X_3}, \tilde{X_4}$
+
+$$\begin{aligned}
+\tilde{X}_1|X = x, t = 1 &= \rho x + \sqrt{ 1- \rho ^2} Z_1 \\
+\tilde{X}_2|X = x, t = 1 &= \rho x + \sqrt{ 1- \rho ^2} Z_2 \\
+\tilde{X}_3|X = x, t = 2 &= \rho x + \sqrt{ 1- \rho ^2} Z_3 \\
+\tilde{X}_4|X = x, t = 2 &= \rho x + \sqrt{ 1- \rho ^2} Z_4 \\
+\\
+cov( \tilde{X_1}, \tilde{X_3}) 
+&= E[ \tilde{X_1} \tilde{X_3} ] - E[ \tilde{X_1} ] E[ \tilde{X_3} ]\\
+&= E[ \tilde{X_1} \tilde{X_3} | t = 1] Pr(t = 1) + E[ \tilde{X_1} \tilde{X_3} | t = 2] Pr(t = 2)\\
+&= 0\\
+\\
+cov( \tilde{X_1}, \tilde{X_3}) 
+&= cov( \tilde{X_1}, \tilde{X_4}) = cov( \tilde{X_2}, \tilde{X_3}) = cov( \tilde{X_2}, \tilde{X_4}) = 0\\
+\\
+cov( \tilde{X_1}, \tilde{X_2}) 
+&= E[ \tilde{X_1} \tilde{X_2}] - E[ \tilde{X_1}]E[ \tilde{X_2}] \\
+&= E[ \tilde{X_1} \tilde{X_2}| t = 1] Pr(t = 1) + E[ \tilde{X_1} \tilde{X_2}| t = 2] Pr(t = 2)\\
+&= \frac{1}{2} E[ \tilde{X_1} \tilde{X_2}| t = 1] + \frac{1}{2} * 0\\
+&= \frac{\rho ^ 2}{2}\\
+\\
+cov(X, \tilde{X_1}) 
+&= E[ X \tilde{X_1}] - E[X]E[ \tilde{X_1}]\\
+&= E[ X \tilde{X_1}| t = 1] Pr(t = 1) + E[X \tilde{X_1}| t = 2] Pr(t = 2)\\
+&= \frac{1}{2}E[X E( \tilde{X_1}|X)] + \frac{1}{2} * 0\\
+&= \frac{1}{2}E[X E( \rho X + \sqrt{1- \rho^2} Z_{1}| X)]\\
+&= \frac{\rho}{2}\\
+\\
+cov(y, \tilde{X_1}) 
+&= E[ y \tilde{X_1}] - E[y] E[ \tilde{X_1}] \\
+&= E[ \tilde{X_1} E[ y|\tilde{X_1}]] \\
+&= E[ \tilde{X_1} E[ \beta x + \epsilon | \tilde{X_1} ] ]\\
+&= \beta E[ \tilde{X_1} E[ X| \tilde{X_1}]]\\
+&= \frac{ \beta \rho}{2}\\
+\\
+\begin{bmatrix}
+y\\ \tilde{X}_1\\ \tilde{X}_2 \\ \tilde{X}_3\\ \tilde{X}_4\\
+\end{bmatrix} 
+&\sim N \left( \begin{bmatrix} 0\\ 0\\ 0 \\ 0 \\ 0 \end{bmatrix},
+\begin{bmatrix} 
+\beta^2 + 1 & \frac{\beta\rho}{2} & \frac{\beta\rho}{2} & \frac{\beta\rho}{2} & \frac{\beta\rho}{2}\\ 
+\frac{\beta\rho}{2} & 1   & \frac{\rho^2}{2} & 0 & 0 \\ 
+\frac{\beta\rho}{2} & \frac{\rho ^ 2}{2}   & 1 & 0 & 0 \\ 
+\frac{\beta\rho}{2} & 0   & 0 & 1 & \frac{\rho^2}{2}\\ 
+\frac{\beta\rho}{2} & 0   & 0 & \frac{\rho^2}{2} & 1 \\ 
+\end{bmatrix} \right)
+\\
+\end{aligned}$$
+
+
+- *Alternative method*: use average of $\tilde{X_1}$, $\tilde{X_2}$, $\tilde{X_3}$ and $\tilde{X_4}$
+
+$$\begin{aligned}
+\tilde{X}_{avg} &= \frac{1}{4} ( \tilde{X_1} + \tilde{X_2} + \tilde{X_3} + \tilde{X_4} ) \\
+\\
+var( \tilde{X}_{avg} ) 
+&= \frac{1}{16} [ var( \tilde{X_1} + \tilde{X_2} ) + var( \tilde{X_3} + \tilde{X_4} ) ] \\
+&= \frac{1}{16} [ var( \tilde{X_1}) + 2 cov( \tilde{X_1}, \tilde{X_2} ) + var( \tilde{X_2} ) + var( \tilde{X_3} ) + 2 cov( \tilde{X_3}, \tilde{X_4} ) + var( \tilde{X_4} ) ] \\
+&= \frac{1}{8} [ 2 + 2 cov( \tilde{X_1}, \tilde{X_2} ) ] \\
+&= \frac{1}{4} + \frac{1}{4} \frac{ \rho ^2 }{2} \\
+&= \frac{1}{4} + \frac{1}{8} \rho ^2 \\
+\\
+cov( X, \tilde{X}_{avg} ) 
+&= E \left[ X \frac{1}{4} ( \tilde{X_1} + \tilde{X_2} + \tilde{X_3} + \tilde{X_4} ) \right] \\
+&= E[ X \tilde{X_1} ]\\
+&= \frac{ \rho }{2}\\
+\\
+\begin{bmatrix}
+y\\  \tilde{X}_{avg}\\
+\end{bmatrix} 
+&\sim N \left( \begin{bmatrix} 0\\ 0  \end{bmatrix},
+\begin{bmatrix} 
+\beta^2 + 1  & \frac{1}{2}\beta\rho \\ 
+\frac{1}{2}\beta\rho & \frac{1}{4} + \frac{1}{8} \rho ^2 \\
+\end{bmatrix} \right)
+\\
+\end{aligned}$$
+
+#### 3 legacy trials with 2 correlated features per trial {.tabset .tabset-pills .tabset-fade}
+**Scenario**: Legacy trial 1 has correlated feature $\tilde{X_1}, \tilde{X_2}$, legacy trial 2 has correlated feature $\tilde{X_3}, \tilde{X_4}$ and legacy trial 3 has correlated features $\tilde{X_5}, \tilde{X_6}$
+
+$$\begin{aligned}
+\tilde{X_1}|X = x, t = 1 &= \rho x + \sqrt{1-\rho^2} Z_1 \\
+\tilde{X_2}|X = x, t = 1 &= \rho x + \sqrt{1-\rho^2} Z_2 \\
+\tilde{X_3}|X = x, t = 2 &= \rho x + \sqrt{1-\rho^2} Z_3 \\
+\tilde{X_4}|X = x, t = 2 &= \rho x + \sqrt{1-\rho^2} Z_4 \\
+\tilde{X_5}|X = x, t = 3 &= \rho x + \sqrt{1-\rho^2} Z_5 \\
+\tilde{X_6}|X = x, t = 3 &= \rho x + \sqrt{1-\rho^2} Z_6 \\
+\\
+cov(\tilde{X_1}, \tilde{X_3}) = 0\\
 \\
 cov(X, \tilde{X_1}) 
 &= E[X\tilde{X_1}] - E[X]E[\tilde{X_1}]\\
@@ -401,14 +635,11 @@ cov(Y, \tilde{X_1})
 &= E[\tilde{X_1} E[\beta x + \epsilon|\tilde{X_1}]]\\
 &= \beta E[\tilde{X_1} E[X|\tilde{X_1}]]\\
 &= \frac{\beta \rho}{3}\\
-\end{aligned}$
-
-
-$\begin{aligned}
+\\
 \begin{bmatrix}
 y\\ \tilde{X}_1\\ \tilde{X}_2 \\ \tilde{X}_3\\ \tilde{X}_4 \\ \tilde{X}_5\\ \tilde{X}_6\\
 \end{bmatrix} 
-\sim N \left( \begin{bmatrix} 0\\ 0\\ 0 \\ 0 \\ 0 \\ 0 \\ 0 \end{bmatrix},
+&\sim N \left( \begin{bmatrix} 0\\ 0\\ 0 \\ 0 \\ 0 \\ 0 \\ 0 \end{bmatrix},
 \begin{bmatrix} 
 \beta^2 + 1 & \frac{\beta\rho}{3} & \frac{\beta\rho}{3} & \frac{\beta\rho}{3} & \frac{\beta\rho}{3} & \frac{\beta\rho}{3}& \frac{\beta\rho}{3}\\ 
 \frac{\beta\rho}{3} & 1   & \frac{\rho^2}{3} & 0 & 0 & 0 & 0 \\ 
@@ -419,4 +650,75 @@ y\\ \tilde{X}_1\\ \tilde{X}_2 \\ \tilde{X}_3\\ \tilde{X}_4 \\ \tilde{X}_5\\ \til
 \frac{\beta\rho}{3} & 0   & 0 & 0 & 0 & \frac{\rho^2}{3} & 1\\ 
 \end{bmatrix} \right)
 \\
-\end{aligned}$
+\end{aligned}$$
+
+- *Alternative method*: use average of $\tilde{X_1}$, ..., $\tilde{X_6}$
+
+$$\begin{aligned}
+\\
+\tilde{X}_{avg} &= \frac{1}{6} ( \tilde{X_1} + ... + \tilde{X_6} ) \\
+\\
+var( \tilde{X}_{avg} ) 
+&= var \left[ \frac{1}{6} ( \tilde{X_1} + ... + \tilde{X_6} ) \right] \\
+&= \frac{1}{36} ( var( \tilde{X_1} + \tilde{X_2} ) + var( \tilde{X_3} + \tilde{X_4} ) + var( \tilde{X_5} + \tilde{X_6} ) ) \\
+&= \frac{1}{12} var( \tilde{X_1} + \tilde{X_2} ) \\
+&= \frac{1}{12} ( var( \tilde{X_1} ) + 2 cov(\tilde{X_1}, \tilde{X_2}) + var( \tilde{X_2} ) ) \\
+&= \frac{1}{6} (1 + cov(\tilde{X_1}, \tilde{X_2}) ) \\
+&= \frac{1}{6} (1 + \frac{1}{3} \rho^2 )\\
+\\
+cov(X, \tilde{X}_{avg} ) 
+&= E \left[ X \frac{1}{6} ( \tilde{X_1} + ... + \tilde{X_6} ) \right] \\
+&= E[ X \tilde{X_1} ]\\
+&= \frac{\rho}{3}\\
+\\
+\begin{bmatrix}
+y\\  \tilde{X}_{avg} \\
+\end{bmatrix} 
+&\sim N \left( \begin{bmatrix} 0\\ 0 \end{bmatrix},
+\begin{bmatrix} 
+\beta^2 + 1  & \frac{1}{3}\beta\rho    \\ 
+\frac{1}{3}\beta\rho & \frac{1}{6} + \frac{1}{18} \rho^2 ) \\
+\end{bmatrix} \right)
+\\
+\end{aligned}$$
+
+#### k legacy trials with h correlated features per trial {.tabset .tabset-pills .tabset-fade}
+**Generalization**: Legacy trial 1 has correlated feature $\tilde{X}_{1,1}, ..., \tilde{X}_{1,h}$, ..., legacy trial k has correlated feature $\tilde{X}_{k,1}, ..., \tilde{X}_{k,h}$,
+
+$$\begin{aligned}
+\tilde{X}_{avg} &= \frac{1}{kh} ( \tilde{X}_{1,1} + ... + \tilde{X}_{k,h} ) \\
+\\
+cov(X, \tilde{X}_{avg} ) 
+&= E \left[ X \frac{1}{kh} ( \tilde{X}_{1,1} + ... + \tilde{X}_{k,h} ) \right] \\
+&= \frac{1}{kh} E[ X \tilde{X}_{1,1} + ... + X \tilde{X}_{k,h} ]\\
+&= E[ X \tilde{X}_{1,1}]\\
+&= E[ X \tilde{X}_{1,1}| t = 1] Pr(t = 1) + ... + E[ X \tilde{X}_{1,1}| t = k] Pr(t = k) \\
+&= \frac{1}{k} E[ X \tilde{X}_{1,1}| t = 1] + ... + \frac{1}{k} E[ X \tilde{X}_{1,1}| t = k] \\
+&= \frac{1}{k} E[ X \tilde{X}_{1,1}| t = 1] \\
+&= \frac{1}{k} \rho \\
+\\
+cov(y, \tilde{X}_{avg} ) &= \frac{1}{k} \beta \rho \\
+\\
+cov( \tilde{X}_{1}, \tilde{X}_{2} ) 
+&= E[ \tilde{X}_{1} \tilde{X}_{1} | t = 1] Pr(t = 1) + E[ \tilde{X}_{1} \tilde{X}_{1} | t = 2] Pr(t = 2) \\
+&= \frac{1}{k} E[ \tilde{X}_{1} \tilde{X}_{1} | t = 1] \\
+&= \frac{1}{k} \rho^2 \\
+\\
+var( \tilde{X}_{avg} ) 
+&= \frac{1}{k^2 h^2} \left[ var( \tilde{X}_{1,1} + ... + \tilde{X}_{1,h} ) + ... + var( \tilde{X}_{k,1} + ... + \tilde{X}_{k,h} ) \right] \\
+&= \frac{1}{k h^2} var( \tilde{X}_{1,1} + ... + \tilde{X}_{1,h} ) \\
+&= \frac{1}{k h^2} \left[ var( \tilde{X_1} ) + ... + var( \tilde{X_h} ) + 2cov( \tilde{X_1}, \tilde{X_2} ) + ... + 2cov( \tilde{X}_{h-1}, \tilde{X}_{h}) \right] \\
+&= \frac{1}{k h^2} \left[ h * var( \tilde{X}_1 ) + \frac{ h(h-1) }{2} 2 cov( \tilde{X}_1, \tilde{X}_2) \right] \\
+&= \frac{1}{kh} var( \tilde{X_1} ) + \frac{h-1}{kh} cov( \tilde{X_1}, \tilde{X_2} ) \\
+&= \frac{1}{kh} + \frac{h-1}{k^2h} \rho^2 \\
+\\
+\begin{bmatrix}
+y\\  \tilde{X}_{avg} \\
+\end{bmatrix} 
+&\sim N \left( \begin{bmatrix} 0\\ 0 \end{bmatrix},
+\begin{bmatrix} 
+\beta^2 + 1  & \frac{1}{k}\beta\rho    \\ 
+\frac{1}{k}\beta\rho & \frac{1}{kh} +   \frac{h - 1}{k^2 h} \rho ^ 2 \\
+\end{bmatrix} \right)
+\\
+\end{aligned}$$
